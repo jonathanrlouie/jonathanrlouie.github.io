@@ -5,6 +5,8 @@ date:   2019-07-28 15:00:00 -0700
 categories: Rust, ZIO, Env-IO, monad, Scala
 ---
 
+EDIT1 (2019-07-30): I have since found a way to implement this without using `unsafe` at all. I have added the updated code at the end of this post.
+
 Aside: I did mention a couple blog posts ago that I would write a bit about my latest game, *Stay Sharp!*, but I want to postpone that until I have something a bit more substantial to say about the project.
 
 ## About Env-IO
@@ -232,5 +234,122 @@ At the current time of this writing, I have yet to add the rest of the effects. 
 
 The usage of `unsafe` in this crate is definitely something I wish I could cut down on or remove completely. I've tried countless times over the last several months to come up with a clean solution that did not use `unsafe` whatsoever, but they all had critical flaws that made them non-viable. Scala gets away with this thanks to subtyping and variance. It can just mark ZIO's type parameters as `-R, +E, +A`, which allows a `ZIO[Int, Int, Int]` to be a subtype of `ZIO[Nothing, Any, Any]`, which allows for easy downcasting. I wonder if there is a way we could emulate this in Rust once `!` is stabilized. It would be a simple 3 tiered hierarchy of types with `Box<dyn Any>` on top, `!` at the bottom, and all other types in between. A safe API around this could be pretty useful for applications like this one, where I had to resort to `mem::transmute` to achieve the same sort of thing. I also ended up looking at the `zerocopy` crate used in Google Fuchsia. Unfortunately, that crate does not work with types containing type parameters. Maybe some day there will be a way to safely express these kinds of programs in Rust with the right crates, but for now, it seems as though `unsafe` is here to stay.
 
+EDIT1:
+Here is the code that I came up with that allows me to avoid using the `unsafe` keyword.
 
+```rust
+use std::any::Any;
+use std::marker::PhantomData;
+
+type BAny = Box<dyn Any>;
+
+type Kleisli = Box<Fn(BAny) -> Box<Instr>>;
+
+enum Instr {
+    Succeed(BAny),
+    Effect(Box<Fn() -> BAny>),
+    FlatMap(Box<Instr>, Kleisli)
+}
+
+struct EnvIO<R, A, E> {
+    instr: Instr,
+    _pd: PhantomData<(R, A, E)>
+}
+
+impl<R: 'static, A: 'static, E: 'static> EnvIO<R, A, E> {
+    fn flat_map<B, K: Fn(A) -> EnvIO<R, B, E> + 'static>(self, k: K) -> EnvIO<R, B, E> {
+        let boxed_input_k = move |a: Box<A>| {
+            k(*a)
+        };
+
+        let any_input_k = move |bany: BAny| {
+            let a: Box<A> = bany
+                .downcast::<A>()
+                .unwrap_or_else(|_| panic!("flat_map: Could not downcast Any to A"));
+            boxed_input_k(a)
+        };
+
+        let instr_output_k = move |bany: BAny| {
+            Box::new(any_input_k(bany).instr)
+        };
+
+        EnvIO {
+            instr: Instr::FlatMap(Box::new(self.instr), Box::new(instr_output_k)),
+            _pd: PhantomData
+        }
+    }
+}
+
+macro_rules! effect {
+    ($e:expr) => {
+        {
+            $crate::effect(move || Box::new($e))
+        }
+    }
+}
+
+fn effect<R, A: 'static, E, F: 'static>(eff: F) -> EnvIO<R, A, E> where F: Fn() -> Box<A> {
+    let effect_any = move || {
+        let bany: BAny = eff();
+        bany
+    };
+
+    EnvIO {
+        instr: Instr::Effect(Box::new(effect_any)),
+        _pd: PhantomData
+    }
+}
+
+fn success<R, A: 'static, E>(a: A) -> EnvIO<R, A, E> {
+    EnvIO {
+        instr: Instr::Succeed(Box::new(a)),
+        _pd: PhantomData
+    }
+}
+
+fn run<R, A: 'static, E>(envio: EnvIO<R, A, E>) -> A {
+    interpret::<A>(envio.instr)
+}
+
+fn interpret<A: 'static>(mut instr: Instr) -> A {
+    let mut stack: Vec<Kleisli> = vec![];
+    loop {
+        match instr {
+            Instr::FlatMap(inner, kleisli) => {
+                match *inner {
+                    Instr::Effect(eff) => {
+                        instr = *kleisli(eff())
+                    }
+                    Instr::Succeed(a) => {
+                        instr = *kleisli(a);
+                    }
+                    _ => {
+                        stack.push(kleisli);
+                        instr = *inner;
+                    }
+                }
+            }
+            Instr::Effect(eff) => {
+                if let Some(kleisli) = stack.pop() {
+                    instr = *kleisli(eff());
+                } else {
+                    return *eff()
+                        .downcast::<A>()
+                        .unwrap_or_else(|_| panic!("interpret (effect): Could not downcast Any to A"));
+                }
+            }
+            Instr::Succeed(a) => {
+                if let Some(kleisli) = stack.pop() {
+                    instr = *kleisli(a);
+                } else {
+                    return *a.downcast::<A>()
+                        .unwrap_or_else(|_| panic!("interpret (succeed): Could not downcast Any to A"));
+                }
+            }
+        }
+    }
+}
+```
+
+This isn't the final API (mostly due to issues related to variance and subtyping; perhaps I will blog about my approach to that problem too), however it does accomplish everything that the previous implementation in this post was able to. For clarity, the `EnvIO` enum from the earlier version of this post was changed to the `Instr` enum here. The major change that allowed me to remove `unsafe` was removing all type parameters from the instruction enum. Instead, the type parameters are tied to a newtype wrapper, which I have named `EnvIO` for now. The type parameters are only used in `PhantomData`, which serves the same purpose as before: keeping things typesafe. As you can see from the code, I ended up replacing most type parameter usages in the instruction enum with `BAny`, which is just a shorter alias for `Box<dyn Any>`. This doesn't change much of how the interpreter works. We were already using an opaque type before, so switching to `BAny` just means we have to downcast instead of using `mem::transmute`. This does complicate all of the functions that take closures as arguments, since they now have to perform more map/contramaps to massage the closure type into something that uses `BAny`. However, I think that this trade-off is worthwhile, since I would much rather avoid the extra responsibility of having to verify that my code does not exhibit UB. One note about the downcasts: I use `unwrap_or_else` because `unwrap_or` is eagerly evaluated and will trigger `panic!` too early. There's probably a cleaner way to `panic!` than this (probably could use `expect`?), but I'll tidy that up later when I come up with better error messages for easier debugging.
 
