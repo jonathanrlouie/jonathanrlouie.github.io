@@ -1,7 +1,7 @@
 ---
 layout: post
 title:  "Friendly Phantoms"
-date:   2019-11-05 20:00:00 -0700
+date:   2019-11-11 20:00:00 -0700
 categories: Rust, functional programming, Haskell, Scala
 ---
 
