@@ -1,0 +1,214 @@
+---
+layout: post
+title:  "Let's build a randomizer! Part 2"
+date:   2020-02-09 10:00:00 -0700
+categories: Rust randomizer
+---
+
+I've finally found some more time to work on this project, so I decided that it's time for another progress update post. This time, I'm going to be focusing on the primary randomization algorithm used to shuffle entrances around. However, I'd like to also briefly go over the structure of the entire project so that it's easier to visualize what's going on.
+
+# Project Structure
+
+![Project structure](/Assets/KatAMRandomizer/Part2/ProjectStructure.PNG)
+
+I'm mostly covering this in case it wasn't entirely clear what the project would look like from the first post. The plan is to have a JSON file containing all of the door information. The randomizer engine that I'm writing will consume this file, transform its contents into a structure that the randomizer algorithm can process, perform all of the necessary entrance swaps, and then output a mapping of the original entrances to their new destinations. From here, a randomizer application can use the randomizer engine as a library to generate entrance mappings for whatever they want.
+
+# Language
+
+So I've finally decided on what tools I'm using. Initially, I was planning on taking Idris for a spin, but it doesn't have much of an ecosystem right now, so I'm using Rust. I'm most familiar with Rust anyway, so it'd be faster for me to write the project in Rust. I won't be able to have the compiler verify that the randomizer is correct in the same way as I would with Idris, but perhaps later I'll play around with this a bit more using the experimental (and super unstable) `const` generics to get similar benefits.
+
+# Dependencies
+
+Since I'm picking Rust, I decided to use `serde_json` for handling JSON deserialization (wow, what a surprise) and I'm also using `petgraph`, since the main algorithm represents the game as a directed graph. For randomization, I just decided to use the popular `rand` crate.
+
+# The Algorithm
+
+The biggest challenge with developing this entrance randomization was making sure that the entire game is completable. I also had the goal of making sure that every room in the game is visitable. Of course, by making every room visitable, the game must also be completable, so this seemed like a pretty good goal to start with. I wanted to also make sure that there was a sufficient amount of randomness to the generated entrance mappings, because otherwise, the game would get stale quickly. I first started with the idea of representing the game as a directed graph, mapping nodes to logical rooms and edges to transitions from one room to another. I would then try to randomly swap the destinations of edges, as long as the game was still completable. This very quickly fell apart because some rooms, such as the 4-door room mentioned in the previous post in this series, needed to have some kind of transition from one logical room on that screen to another. This made me realize that I needed to create subgraphs for each room. Thus, I decided to represent doors as nodes with the paths between each door being represented as edges. I then decided that the JSON transformation would need to tell the algorithm which entrances can be swapped.
+
+# Visitability
+
+At this point, I started sketching out some scenarios of how the algorithm would perform randomizations while still allowing all nodes to be visitable. As a result of this, I learned that it's very difficult to build up a fully visitable graph from an empty graph, since the order in which you add entrances matter. For instance, you might add a node to the graph that cuts off all possibilities of connecting a new two-way entrance. This is certainly possible through a brute-force permutation search, but that could take a long time and I didn't want to take that risk, even if it's relatively small in practice. However, even in that case, I would still need to somehow determine whether or not the game is completable before adding new nodes. Thus, I started researching this problem online and found a bunch of material on dynamic graphs. It turns out that as long as I ignore abilities, I can condense the strongly-connected components (SCCs) of the graph into single nodes and then just check if there is only 1 node in the graph that has no incoming edges. If so, then the entire graph is visitable from the start node. Luckily, the `petgraph` crate already supports condensing graphs using Kosaraju's algorithm. I ultimately ended up writing an algorithm that simply loops some specified number of times, randomly swapping edges if the swap allows the game to be completed according to the aforementioned logic. This involves copying the graph and recondensing it after each swap, which is a bit slow, but I think there is probably a way to avoid recondensing the entire graph after each swap. At the very least, `petgraph`'s `map` function only seems to perform a shallow copy of the graph.
+
+# Further optimizations
+
+One idea I had is to mark certain subgraphs as being connectors. What I mean by this is that a graph like the following...
+
+![Graph](/Assets/KatAMRandomizer/Part2/Graph.PNG)
+
+... can be expanded into the following graph by inserting an arbitrary subgraph of the right shape:
+
+![Graph inserted](/Assets/KatAMRandomizer/Part2/GraphInserted.PNG)
+
+As you can see, all subgraphs that contain a single entrance and exit of the same type (either one-way or two-way) can be arbitrarily inserted anywhere there is an edge of the corresponding type. This allows us to run the algorithm on only the portion of the graph that does not contain these "filler" subgraphs and also allows us to randomly insert these subgraphs later. Of course, doing this means that the JSON transformation needs to also build the graph without these subgraphs in the initial algorithm input. I haven't implemented this yet, but I definitely plan to do this soon, since it would help with making the game more random and would also speed up the randomization process significantly.
+
+# The code
+
+Finally, here's the code for the algorithm:
+
+```rust
+use petgraph::{algo::condensation, prelude::*, stable_graph::StableDiGraph};
+use rand::{rngs::StdRng, seq::IteratorRandom, Rng, SeedableRng};
+use std::{collections::HashSet, hash::Hash};
+
+trait Swappable {
+    fn swap<N>(&self, other: &Self, graph: &mut StableDiGraph<N, ()>) -> EdgePair<Self>
+    where
+        Self: Sized;
+}
+
+#[derive(Copy, Clone, Hash, Eq)]
+struct OneWay {
+    edge_idx: EdgeIndex,
+    start_node_idx: NodeIndex,
+    end_node_idx: NodeIndex,
+}
+
+impl OneWay {
+    fn new(edge_idx: EdgeIndex, start_node_idx: NodeIndex, end_node_idx: NodeIndex) -> Self {
+        Self {
+            edge_idx,
+            start_node_idx,
+            end_node_idx,
+        }
+    }
+}
+
+impl PartialEq for OneWay {
+    fn eq(&self, other: &Self) -> bool {
+        self.edge_idx == other.edge_idx
+            && self.start_node_idx == other.start_node_idx
+            && self.end_node_idx == other.end_node_idx
+    }
+}
+
+impl Swappable for OneWay {
+    fn swap<N>(&self, other: &Self, graph: &mut StableDiGraph<N, ()>) -> EdgePair<OneWay> {
+        graph.remove_edge(self.edge_idx);
+        graph.remove_edge(other.edge_idx);
+        let e1 = graph.add_edge(self.start_node_idx, other.end_node_idx, ());
+        let e2 = graph.add_edge(other.start_node_idx, self.end_node_idx, ());
+
+        EdgePair(
+            OneWay::new(e1, self.start_node_idx, other.end_node_idx),
+            OneWay::new(e2, other.start_node_idx, self.end_node_idx),
+        )
+    }
+}
+
+#[derive(Copy, Clone, Hash, Eq)]
+struct TwoWay {
+    fst_edge_idx: EdgeIndex,
+    snd_edge_idx: EdgeIndex,
+    fst_node_idx: NodeIndex,
+    snd_node_idx: NodeIndex,
+}
+
+impl PartialEq for TwoWay {
+    fn eq(&self, other: &Self) -> bool {
+        self.fst_edge_idx == other.fst_edge_idx
+            && self.snd_edge_idx == other.snd_edge_idx
+            && self.fst_node_idx == other.fst_node_idx
+            && self.snd_node_idx == other.snd_node_idx
+    }
+}
+
+impl TwoWay {
+    fn new(
+        fst_edge_idx: EdgeIndex,
+        snd_edge_idx: EdgeIndex,
+        fst_node_idx: NodeIndex,
+        snd_node_idx: NodeIndex,
+    ) -> Self {
+        Self {
+            fst_edge_idx,
+            snd_edge_idx,
+            fst_node_idx,
+            snd_node_idx,
+        }
+    }
+}
+
+impl Swappable for TwoWay {
+    fn swap<N>(&self, other: &Self, graph: &mut StableDiGraph<N, ()>) -> EdgePair<TwoWay> {
+        graph.remove_edge(self.fst_edge_idx);
+        graph.remove_edge(other.fst_edge_idx);
+        let e1 = graph.add_edge(self.fst_node_idx, other.snd_node_idx, ());
+        let e2 = graph.add_edge(other.fst_node_idx, self.snd_node_idx, ());
+
+        graph.remove_edge(self.snd_edge_idx);
+        graph.remove_edge(other.snd_edge_idx);
+        let e3 = graph.add_edge(self.snd_node_idx, other.fst_node_idx, ());
+        let e4 = graph.add_edge(other.snd_node_idx, self.fst_node_idx, ());
+
+        EdgePair(
+            TwoWay::new(e1, e4, self.fst_node_idx, other.snd_node_idx),
+            TwoWay::new(e2, e3, other.fst_node_idx, self.snd_node_idx),
+        )
+    }
+}
+
+struct EdgePair<T: Swappable>(T, T);
+
+fn pick_random_edges<T>(swap_edges: &HashSet<T>, rng: &mut StdRng) -> Option<EdgePair<T>>
+where
+    T: Copy + Clone + Hash + Eq + Swappable,
+{
+    if swap_edges.len() >= 2 {
+        let edge_vec: Vec<&T> = swap_edges.into_iter().choose_multiple(rng, 2);
+        Some(EdgePair(*edge_vec[0], *edge_vec[1]))
+    } else {
+        None
+    }
+}
+
+fn try_swap_edges<N, T>(
+    graph: &mut StableDiGraph<N, ()>,
+    swap_edges: &mut HashSet<T>,
+    rng: &mut StdRng,
+) where
+    T: Copy + Clone + Hash + Eq + Swappable,
+{
+    if let Some(EdgePair(edge1, edge2)) = pick_random_edges(swap_edges, rng) {
+        let EdgePair(new_edge1, new_edge2) = edge1.swap(&edge2, graph);
+        swap_edges.remove(&edge1);
+        swap_edges.remove(&edge2);
+        if !game_beatable(&graph) {
+            let EdgePair(restored_edge1, restored_edge2) = new_edge1.swap(&new_edge2, graph);
+            swap_edges.insert(restored_edge1);
+            swap_edges.insert(restored_edge2);
+        } else {
+            swap_edges.insert(new_edge1);
+            swap_edges.insert(new_edge2);
+        }
+    }
+}
+
+fn build_game<N>(
+    mut graph: StableDiGraph<N, ()>,
+    mut one_ways: HashSet<OneWay>,
+    mut two_ways: HashSet<TwoWay>,
+    rng: &mut StdRng,
+    iterations: usize,
+) -> StableDiGraph<N, ()> {
+    assert!(game_beatable(&graph));
+    for _ in 0..iterations {
+        if rng.gen::<bool>() {
+            try_swap_edges(&mut graph, &mut one_ways, rng);
+        } else {
+            try_swap_edges(&mut graph, &mut two_ways, rng);
+        }
+    }
+    graph
+}
+
+fn game_beatable<N, E>(graph: &StableDiGraph<N, E>) -> bool {
+    let condensed_graph = condensation(graph.map(|_, n| n, |_, e| e).into(), true);
+    condensed_graph.externals(Incoming).count() == 1
+}
+```
+
+There's some room for improvement, especially in terms of safety checks, but I think that this is a fairly good start. Again, there are optimizations that could be made here, but I'm reasonably satisfied with the current implementation for now.
+
+# What's next?
+
+With the main algorithm basically complete, I'm currently working on transforming the JSON list of doors into the appropriate input for the algorithm. I aim to finish the entire engine before I make my next post about this project, since I don't think there's too much more work to do. Then, I'm probably going to play around with integrating `const` generics into the project.
