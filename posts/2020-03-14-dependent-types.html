@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>My Hakyll Blog - Pi Types</title>
+        <link rel="stylesheet" href="../css/default.css" />
+    </head>
+    <body>
+        <header>
+            <div class="logo">
+                <a href="../">My Hakyll Blog</a>
+            </div>
+            <nav>
+                <a href="../">Home</a>
+                <a href="../about.html">About</a>
+                <a href="../contact.html">Contact</a>
+                <a href="../archive.html">Archive</a>
+            </nav>
+        </header>
+
+        <main role="main">
+            <h1>Pi Types</h1>
+            <article>
+    <section class="header">
+        Posted on March 14, 2020
+        
+    </section>
+    <section>
+        <p>Happy Pi Day! Well, maybe this won't go up until after Pi Day, but it's currently Pi Day as I write this. To celebrate the occasion, I decided to write about pi types. I figured that this was also a great time to write about my journey towards understanding dependent types. I'm not exactly an expert of type theory and it was difficult even making it this far, but hopefully this post makes it easier for others to reach this point.</p>
+<h1 id="what-are-dependent-types">What are dependent types?</h1>
+<p>Dependent types are types whose definitions depend on values. This can be kind of mind-bending, since we typically tend to distinguish types from values in most popular programming languages. In a dependently typed language, types are first-class, meaning they can be used like values. This is quite similar to how functions are first-class in most programming languages (passing functions as arguments to other functions).</p>
+<p>Informally, we tend to think of types as sets of values. For example, the values <code>1</code>, <code>2</code>, and <code>3</code> might be members of the type <code>int</code>. In a dependently typed language, types are members of their own type, which I will call <code>Type</code>. Of course, by the same reasoning used in <a href="https://en.wikipedia.org/wiki/Russell%27s_paradox">Russell's Paradox</a>, we can't have a set of all sets. Thus, we can't have a type of all types. Instead, we call the type of types a (type) universe, where the universe of types called <code>Type</code> would be a member of universe <code>Type1</code>, <code>Type1</code> would be a member of <code>Type2</code>, and so on. This is how languages like Idris avoid the aforementioned paradox problem, although other dependently typed languages (such as <a href="https://github.com/moonad/Formality">Formality</a>) define <code>Type: Type</code> due to differences in their underlying type theories. Again, I should stress that types aren't actually sets, but this informal view of them is sufficient for understanding the rest of this post.</p>
+<h1 id="from-the-top">From the top</h1>
+<p>In order to build up an intuition for how to reason with dependent types, I will start from plain old Rust functions. Rust does not support dependent types, but I would like to draw some parallels between the more familiar C-style syntax of Rust and Idris' syntax. In addition, I will be drawing some parallels between Idris' syntax and predicate logic to help round things out.</p>
+<h1 id="generics">Generics</h1>
+<p>Before we can really dig into this, we're going to need to have an understanding of how generics work in Rust and other similar languages (such as Java, C#, etc.). We'll start from the identity function:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode rust"><code class="sourceCode rust"><span id="cb1-1"><a href="#cb1-1"></a><span class="kw">fn</span> id&lt;A&gt;(a: A) -&gt; A <span class="op">{</span></span>
+<span id="cb1-2"><a href="#cb1-2"></a>  a</span>
+<span id="cb1-3"><a href="#cb1-3"></a><span class="op">}</span></span></code></pre></div>
+<p>As the name suggests, the identity function takes a value of any type <code>A</code> and must return a value of that same type <code>A</code>. Note that we have no other choice but to return the input argument <code>a</code> itself, since there is no magical way for us to conjure up a value of type <code>A</code> from thin air. Our function implementation is driven by our function's type signature, ignoring the possibility of side-effects. Generics are monomorphized in Rust, meaning that the caller of our <code>id</code> function will choose what type <code>A</code> will be. You can think of this as copying and pasting <code>id</code> with the chosen type replacing all instances of <code>A</code>. For example, if we called <code>id</code> with a value <code>2u32</code>, our function <code>id</code> will be copied and pasted as follows:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode rust"><code class="sourceCode rust"><span id="cb2-1"><a href="#cb2-1"></a><span class="kw">fn</span> id&lt;<span class="dt">u32</span>&gt;(a: <span class="dt">u32</span>) -&gt; <span class="dt">u32</span> <span class="op">{</span></span>
+<span id="cb2-2"><a href="#cb2-2"></a>  a</span>
+<span id="cb2-3"><a href="#cb2-3"></a><span class="op">}</span></span></code></pre></div>
+<h1 id="rewrite-it-in...-idris">Rewrite it in... Idris?</h1>
+<p>At this point, we're ready to try implementing this function in Idris. For this section, I want to focus on the type signature, since it is easily the most important part of the function's definition. In Idris, our type signature can be written as follows:</p>
+<pre><code>id : a -&gt; a</code></pre>
+<p>In Idris, generic type parameters are typically written in lowercase. This syntax is much less verbose than the Rust syntax, but it is also leaving some bits implicit. We can rewrite this signature in explicit form:</p>
+<pre><code>id : {a : Type} -&gt; (value : a) -&gt; a</code></pre>
+<p>Here, the curly braces mean that our parameter <code>a</code> is implicit. I could just as easily have defined this with round parentheses:</p>
+<pre><code>id : (a : Type) -&gt; (value : a) -&gt; a</code></pre>
+<p>This means we need to explicity pass a type as an argument to <code>id</code> now.</p>
+<p>For those who are unfamiliar with this type signature syntax, this is just a function that takes 2 arguments: <code>a</code> of type <code>Type</code>, and <code>value</code> of type <code>a</code>. Remember, types are first-class in Idris! You'll notice that we have two arrows in the signature instead of splitting the arguments with a comma. Idris supports currying, which means that we can view this function as taking an argument <code>a</code> of type <code>Type</code> and returning a function which takes a <code>value</code> of type <code>a</code> and returns a value of type <code>a</code>. In other words, we can partially apply the function by supplying each argument one at a time instead of giving all of the arguments up front. More formally, we could state that the function type <code>a -&gt; b -&gt; c</code> is isomorphic to the function type <code>(a, b) -&gt; c</code>.</p>
+<p>Let's compare our two syntaxes now:</p>
+<pre><code>// Rust
+fn id&lt;A&gt;(a: A) -&gt; A
+
+// Idris
+id : {a : Type} -&gt; (value : a) -&gt; a</code></pre>
+<p>To avoid confusion, I renamed the Rust parameter <code>a</code> as <code>value</code> in the Idris example. As you can see, the <code>&lt;A&gt;</code> of Rust's C-style syntax specifies that <code>A</code> is indeed a type parameter, not just a value parameter. In Idris, that distinction in syntax disappears as types are treated just like regular values.</p>
+<h1 id="idris-to-predicate-logic">Idris to Predicate Logic</h1>
+<p>Now, we will make use of a result known as the Curry-Howard correspondence/isomorphism. What Curry-Howard states is that there exists a transformation from types to logical propositions and from logical propositions back into types. This may sound kind of crazy, but it's true! However, this mapping only works for languages like Idris that do not support infinite loops or exception throwing (basically, any function that doesn't return a value). Okay, technically, Idris DOES allow infinite recursion, but Idris has a termination checker that can tell you if your program definitely terminates. Only terminating programs correspond to logical proofs.</p>
+<p>Note that Idris' termination checker isn't a solution to the halting problem, which states that termination is an undecidable property. By undecidable, I mean that given an arbitrary program, Idris can't answer "Yes" or "No" to the question "Does this program terminate?". Instead, Idris' termination checker makes a conservative guess about whether or not an arbitrary program terminates. This means that for some programs that do terminate, the termination checker might say "I don't know if this program terminates or not".</p>
+<p>Without further ado, I'm going to show an equivalent definition of the Idris function in predicate logic, which we will subsequently break down:</p>
+<figure>
+<img src="../Assets/PiTypes/Formula1.PNG" alt /><figcaption>Formula1</figcaption>
+</figure>
+<p><code>U0</code> is the first type universe, which contains all types.</p>
+<p>In Rust and Idris, we read <code>a : A</code> as "<code>a</code> is of type <code>A</code>". In our logical interpretation, we can read this as "<code>a</code> is a proof of the proposition <code>A</code>" by Curry-Howard. In fact, we could say that any implementation of our function <code>id</code> that compiles is a proof of this proposition.</p>
+<p>We can take this a step further. We can also rewrite this as follows:</p>
+<figure>
+<img src="../Assets/PiTypes/Formula2.PNG" alt /><figcaption>Formula2</figcaption>
+</figure>
+<p>Which we can read as "for all propositions <code>A</code> in universe <code>U0</code>, <code>A</code> implies <code>A</code>". This has several implications (no pun intended). Already, by using this arrow notation, we are a lot closer to Idris' function signature syntax, which helps us to see the correspondence. Secondly, it shows that implication is a special case of universal quantification under certain circumstances. I will discuss this second point in more detail later.</p>
+<h1 id="dependent-function-types-pi-types">Dependent Function Types (pi types)</h1>
+<p>At this point, we're ready to look at some dependently typed functions. Here, I define <code>Vect n a</code> as a vector of length <code>n</code> containing objects of type <code>a</code>, just as it is defined in Idris. We will write a function that takes a natural number (that is an integer from 0 to positive infinity) and produces a vector of objects of a given type with that length. Note that <code>Vect</code> is parameterized not only by a type, but by a length, which is a numerical value. Here's the definition of our function:</p>
+<pre><code>// being super explicit here 
+mkVect : {a: Type} -&gt; (n : Nat) -&gt; (value : a) -&gt; Vect n a
+mkVect Z value = []
+mkVect (S n) value = value :: mkVect n
+
+// implicit version
+mkVect : (n : Nat) -&gt; a -&gt; Vect n a</code></pre>
+<p>We can mostly ignore the function's implementation. It simply produces a vector of length <code>n</code> where all the elements are some value of type <code>a</code>. What is important here is the type signature. We now have a type signature where the return type depends on the argument to the function. How does this look from a more logical perspective?</p>
+<figure>
+<img src="../Assets/PiTypes/Formula3.PNG" alt /><figcaption>Formula3</figcaption>
+</figure>
+<p>Here, <code>N</code> represents the natural numbers and <code>Vect</code> is a predicate that takes the value variable <code>n</code> and the type variable <code>A</code>. I'm glossing over a few details related to how <code>Vect</code> is defined, but I think we can safely ignore them for the sake of this discussion. What is important to note here is that we reason with both type variables and value variables universally.</p>
+<p>Note that we don't need <code>v</code> at all. Vect is only parameterized by <code>n</code> and <code>A</code>, so we can rewrite this as follows:</p>
+<figure>
+<img src="../Assets/PiTypes/Formula4.PNG" alt /><figcaption>Formula4</figcaption>
+</figure>
+<p>That might seem confusing, but what this is really showing is that you can treat "implies" as a special case of the universal quantifier if the proposition on the right-hand side does NOT depend on the quantified variable.</p>
+<p>Okay, so that's all cool, but how does this work in programming? This is the part that I struggled with the most when comparing dependent types to Rust and its <code>const</code> generics. The first question anyone asks me when I talk about dependent types is "How do you determine what type a value has if it relies on a runtime value?". Usually, if a program is poorly typed, the compiler will reject it and not allow you to run it. This is confusing in the context of dependently typed languages because many values are determined at runtime, such as user input, but bad programs are rejected at compile-time. It sort of creates a chicken and egg problem, right? Well, it turns out that it doesn't. By the same reasoning we use for generic type arguments, we can write functions over generic value arguments (you know, the regular ol' parameters you've been using in literally every other language!). This is where our reasoning with universal quantification comes in handy. <code>mkVect</code> takes any arbitrary value <code>n</code> of type <code>Nat</code>, so it doesn't matter what the value of <code>n</code> is at runtime.</p>
+<p>In this case, since the implementation of <code>mkVect</code> is recursive, it corresponds to a proof by induction (the recursive call is our inductive hypothesis). Thus, we can state that we can produce a <code>Vect</code> of any given length <code>n</code>.</p>
+<p>Here's an example of how we might try to monomorphize <code>mkVect</code>:</p>
+<pre><code>// We will replace all instance of a and n by the specific types/values we get
+mkVect : {a: Type} -&gt; (n : Nat) -&gt; (value : a) -&gt; Vect n a
+
+// Monomorphize using String (Idris probably doesn\'t do this under the hood, but it\'s a good mental model to reason with)
+mkVect : {String: Type} -&gt; (n : Nat) -&gt; (value : String) -&gt; Vect n String 
+
+// Here is what this might look like if we gave 3 as the length at compile time.
+mkVect : {String: Type} -&gt; (3 : Nat) -&gt; (value : String) -&gt; Vect 3 String </code></pre>
+<p>Note that we cannot define a function that takes a <code>Vect</code> of arbitrary length (such as one we might construct at runtime) and pass it to a function that requires a <code>Vect</code> with a specific length. That would be like trying to pass <code>HashSet&lt;T&gt;</code> to a function that takes <code>HashSet&lt;String&gt;</code>. It won't type-check, so the program correctly fails to compile in these cases. Despite not knowing the concrete value of the length at compile time, we can still reason with it generically, meaning we have all of the information we need for type checking at compile time. Thus, there's no case where we will run into a chicken and egg problem. For the cases where you need to provide a specific length <code>Vect</code> and only have a runtime created <code>Vect</code>, then you will need to provide proof that the runtime value has the correct length. As an example, a function with signature <code>Vect n a -&gt; Maybe (Vect 3 a)</code> would allow you to extract a vector of length 3 in cases where <code>n</code> is 3 and would return <code>Nothing</code> otherwise. This is not unlike using a smart constructor.</p>
+<h1 id="why-pi">Why Pi?</h1>
+<p>Now that I've gone through all the trouble of defining what dependent types are and how to reason with them, it'd be nice to know what super-powers they give us, right? First of all, they allow us to more precisely define our data types. For example, <code>Vect</code> being parameterized by its length allows the compiler to check for index out of bounds errors at compile time. In addition, they allow the compiler to more easily perform proof searches, which automatically will implement functions based solely on their function signatures. They also give us the means to formally verify our programs in the same language as we write them in by simply compiling them. I highly recommend checking out Edwin Brady's book <a href="https://www.manning.com/books/type-driven-development-with-idris">Type-Driven Development with Idris</a> for concrete examples of how to use pi types to solve practical problems.</p>
+<h1 id="comparison-with-const-generics">Comparison with <code>const</code> generics</h1>
+<p>So what is it about dependent types that separates them from <code>const</code> generics? Well, as the name suggests, <code>const</code> generics require all values to be known at compile-time before they can be used as generic arguments (I can't really call them type arguments at this point). For example, I can define the following function in Rust:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode rust"><code class="sourceCode rust"><span id="cb9-1"><a href="#cb9-1"></a><span class="co">// A vector of length N containing elements of type A</span></span>
+<span id="cb9-2"><a href="#cb9-2"></a><span class="kw">struct</span> Vect&lt;<span class="kw">const</span> N: <span class="dt">u32</span>, A&gt; <span class="op">{</span></span>
+<span id="cb9-3"><a href="#cb9-3"></a>    ...</span>
+<span id="cb9-4"><a href="#cb9-4"></a><span class="op">}</span></span>
+<span id="cb9-5"><a href="#cb9-5"></a></span>
+<span id="cb9-6"><a href="#cb9-6"></a><span class="kw">fn</span> mkVect&lt;<span class="kw">const</span> N: <span class="dt">u32</span>&gt;() -&gt; Vect N <span class="dt">String</span></span></code></pre></div>
+<p>... but I can't define this one:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode rust"><code class="sourceCode rust"><span id="cb10-1"><a href="#cb10-1"></a><span class="co">// theoretical syntax</span></span>
+<span id="cb10-2"><a href="#cb10-2"></a><span class="kw">fn</span> mkVect(n: <span class="dt">u32</span>) -&gt; Vect n <span class="dt">String</span></span>
+<span id="cb10-3"><a href="#cb10-3"></a></span>
+<span id="cb10-4"><a href="#cb10-4"></a><span class="co">// alternate theoretical syntax that also doesn't work</span></span>
+<span id="cb10-5"><a href="#cb10-5"></a><span class="kw">fn</span> mkVect&lt;N: <span class="dt">u32</span>&gt;() -&gt; Vect N <span class="dt">String</span></span></code></pre></div>
+<p>Note that in the first example, the value of <code>N</code> must be decided at each call site and must be known strictly at compile time. The second example takes any arbitrary value, which may not be known at compile time. As you can see, dependent types give us a superset of the functionality of <code>const</code> generics by allowing us to generically reason with values only known at runtime.</p>
+<p>So, why does Rust not just support full on pi types? It turns out that there was an effort to try and add pi types to Rust once before, but this didn't pan out, most likely due to breakages in the type system. I personally hope that this is revisited again after <code>const</code> generics are stabilized, but I don't think it's too likely that Rust will be seeing pi types any time soon.</p>
+<h1 id="about-sigma-types">About Sigma Types</h1>
+<p>When people talk about dependent types, they sometimes mention sigma types. Sigma types correspond to existential quantification in logic, so they can be implemented in terms of pi types. Thus, if you can use pi types, you should be able to define your own sigma types.</p>
+<h1 id="closing">Closing</h1>
+<p>Phew! There you have it! That's pretty much everything I know about dependent types at the moment. If there's anything wrong in there, please let me know and I'll amend it. Thanks for reading!</p>
+    </section>
+</article>
+
+        </main>
+
+        <footer>
+            Site proudly generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </footer>
+    </body>
+</html>

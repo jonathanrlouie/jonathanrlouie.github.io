@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>My Hakyll Blog - Friendly Phantoms</title>
+        <link rel="stylesheet" href="../css/default.css" />
+    </head>
+    <body>
+        <header>
+            <div class="logo">
+                <a href="../">My Hakyll Blog</a>
+            </div>
+            <nav>
+                <a href="../">Home</a>
+                <a href="../about.html">About</a>
+                <a href="../contact.html">Contact</a>
+                <a href="../archive.html">Archive</a>
+            </nav>
+        </header>
+
+        <main role="main">
+            <h1>Friendly Phantoms</h1>
+            <article>
+    <section class="header">
+        Posted on November 11, 2019
+        
+    </section>
+    <section>
+        <p>I can't keep up with my blog! Halp! On the other hand, I've been asked on two separate occasions to present a talk on monads, since people really seem to like my explanations. Thus, the blog has kind of taken the backseat. I will try to stay on top of this thing as best as I can, though! I've actually been meaning to write more about randomizers again, but I will need some time to prepare the material for it.</p>
+<p>Recently, I read a paper called <a href="https://kataskeue.com/gdp.pdf">Ghosts of Departed Proofs</a>. It's a Haskell paper, but I found that I could translate most of the concepts to Rust. I've been meaning to write about this for a while, but haven't really had time to do so. Since I recently did a presentation on this topic, I felt that now was as good a time as any.</p>
+<h1 id="ghosts-of-departed-proofs">Ghosts of Departed Proofs</h1>
+<p>To motivate this technique, let's revisit smart constructors. I have <a href="https://jonathanrlouie.github.io/rust,/functional/programming,/mini-rando/2019/01/01/functional-filler.html">previously written</a> about the usage of smart constructors to remove invalid states from programs. While this does give us added type-safety, the additional <code>Option</code> wrapper can slow down our code and also make it less ergonomic. Ideally, we would like to be able to express to the compiler that there is no need for an <code>Option</code> in some cases, since we can prove that the input is already valid. Fortunately, there are ways to do this through type-level programming, such as the GDP technique.</p>
+<p>Before we can use GDP, we will need some way of expressing rank-N types in Rust. While they aren't currently supported in the language itself, we can emulate rank-N types using traits, as mentioned <a href="https://phaazon.net/blog/rank-n-rust">here</a>.</p>
+<p>One of the important components of the GDP technique is the ability to name specific values at the type-level. To do this, we define a <code>name</code> function:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode rust"><code class="sourceCode rust"><span id="cb1-1"><a href="#cb1-1"></a><span class="kw">use</span> <span class="pp">std::marker::</span>PhantomData;</span>
+<span id="cb1-2"><a href="#cb1-2"></a></span>
+<span id="cb1-3"><a href="#cb1-3"></a><span class="kw">pub</span> <span class="kw">trait</span> NameFn&lt;Input&gt; <span class="op">{</span></span>
+<span id="cb1-4"><a href="#cb1-4"></a>    <span class="kw">type</span> Output;</span>
+<span id="cb1-5"><a href="#cb1-5"></a></span>
+<span id="cb1-6"><a href="#cb1-6"></a>    <span class="kw">fn</span> call&lt;Name&gt;(<span class="kw">self</span>, input: Named&lt;Input, Name&gt;) -&gt; <span class="kw">Self</span>::Output;</span>
+<span id="cb1-7"><a href="#cb1-7"></a><span class="op">}</span></span>
+<span id="cb1-8"><a href="#cb1-8"></a></span>
+<span id="cb1-9"><a href="#cb1-9"></a><span class="co">/// A named value where the name is opaque</span></span>
+<span id="cb1-10"><a href="#cb1-10"></a><span class="kw">pub</span> <span class="kw">struct</span> Named&lt;A, N&gt; <span class="op">{</span></span>
+<span id="cb1-11"><a href="#cb1-11"></a>    value: A,</span>
+<span id="cb1-12"><a href="#cb1-12"></a>    name: PhantomData&lt;N&gt;,</span>
+<span id="cb1-13"><a href="#cb1-13"></a><span class="op">}</span></span>
+<span id="cb1-14"><a href="#cb1-14"></a></span>
+<span id="cb1-15"><a href="#cb1-15"></a><span class="kw">impl</span>&lt;A, N&gt; Named&lt;A, N&gt; <span class="op">{</span></span>
+<span id="cb1-16"><a href="#cb1-16"></a>    <span class="co">/// Unnames a named value and returns that value</span></span>
+<span id="cb1-17"><a href="#cb1-17"></a>    <span class="kw">pub</span> <span class="kw">fn</span> unname(<span class="kw">self</span>) -&gt; A <span class="op">{</span></span>
+<span id="cb1-18"><a href="#cb1-18"></a>        <span class="kw">self</span>.value</span>
+<span id="cb1-19"><a href="#cb1-19"></a>    <span class="op">}</span></span>
+<span id="cb1-20"><a href="#cb1-20"></a></span>
+<span id="cb1-21"><a href="#cb1-21"></a>    <span class="co">/// Unnames a named value and returns a reference to that value</span></span>
+<span id="cb1-22"><a href="#cb1-22"></a>    <span class="kw">pub</span> <span class="kw">fn</span> unname_ref(&amp;<span class="kw">self</span>) -&gt; &amp;A <span class="op">{</span></span>
+<span id="cb1-23"><a href="#cb1-23"></a>        &amp;<span class="kw">self</span>.value</span>
+<span id="cb1-24"><a href="#cb1-24"></a>    <span class="op">}</span></span>
+<span id="cb1-25"><a href="#cb1-25"></a><span class="op">}</span></span>
+<span id="cb1-26"><a href="#cb1-26"></a></span>
+<span id="cb1-27"><a href="#cb1-27"></a><span class="kw">pub</span> <span class="kw">fn</span> name&lt;In, F: NameFn&lt;In&gt;&gt;(input: In, f: F) -&gt; <span class="op">{</span></span>
+<span id="cb1-28"><a href="#cb1-28"></a>    f.call(Named <span class="op">{</span></span>
+<span id="cb1-29"><a href="#cb1-29"></a>	    value: input,</span>
+<span id="cb1-30"><a href="#cb1-30"></a>		name: <span class="pp">PhantomData::</span>&lt;()&gt;</span>
+<span id="cb1-31"><a href="#cb1-31"></a>	<span class="op">}</span>)</span>
+<span id="cb1-32"><a href="#cb1-32"></a><span class="op">}</span></span></code></pre></div>
+<p>Implementors of <code>NameFn</code> can be passed as callbacks to other functions. What's important here is that we have a type parameter that is scoped to the callback and not to the <code>name</code> method. That way, API users cannot choose the type-level name for the value. It will be completely opaque to them. The unname methods are for extracting the value from a named value.</p>
+<p>So what does naming specific values help us achieve? One example that the paper gives is sorting and merging two lists into one. We can specify that the merge function uses the same comparator as the one used to sort the two lists. In Rust, that looks like this:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode rust"><code class="sourceCode rust"><span id="cb2-1"><a href="#cb2-1"></a><span class="kw">mod</span> gdp_merge_by <span class="op">{</span></span>
+<span id="cb2-2"><a href="#cb2-2"></a>    <span class="kw">use</span> <span class="pp">std::marker::</span>PhantomData;</span>
+<span id="cb2-3"><a href="#cb2-3"></a>    <span class="kw">use</span> <span class="pp">std::cmp::</span>Ordering;</span>
+<span id="cb2-4"><a href="#cb2-4"></a>    <span class="kw">use</span> <span class="kw">super</span>::<span class="pp">gdp::</span>Named;</span>
+<span id="cb2-5"><a href="#cb2-5"></a></span>
+<span id="cb2-6"><a href="#cb2-6"></a>    <span class="co">/// A vector sorted by a comparator with name N</span></span>
+<span id="cb2-7"><a href="#cb2-7"></a>    <span class="kw">pub</span> <span class="kw">struct</span> SortedBy&lt;T, N&gt; <span class="op">{</span></span>
+<span id="cb2-8"><a href="#cb2-8"></a>        vec: <span class="dt">Vec</span>&lt;T&gt;,</span>
+<span id="cb2-9"><a href="#cb2-9"></a>        _pd: PhantomData&lt;N&gt;</span>
+<span id="cb2-10"><a href="#cb2-10"></a>    <span class="op">}</span></span>
+<span id="cb2-11"><a href="#cb2-11"></a></span>
+<span id="cb2-12"><a href="#cb2-12"></a>    <span class="kw">impl</span>&lt;T, N&gt; SortedBy&lt;T, N&gt; <span class="op">{</span></span>
+<span id="cb2-13"><a href="#cb2-13"></a>        <span class="kw">pub</span> <span class="kw">fn</span> vec(<span class="kw">self</span>) -&gt; <span class="dt">Vec</span>&lt;T&gt; <span class="op">{</span></span>
+<span id="cb2-14"><a href="#cb2-14"></a>            <span class="kw">self</span>.vec</span>
+<span id="cb2-15"><a href="#cb2-15"></a>        <span class="op">}</span></span>
+<span id="cb2-16"><a href="#cb2-16"></a>    <span class="op">}</span></span>
+<span id="cb2-17"><a href="#cb2-17"></a></span>
+<span id="cb2-18"><a href="#cb2-18"></a>    <span class="co">/// Takes `vec` and returns a named SortedBy&lt;Vec&lt;u32&gt;, N&gt;</span></span>
+<span id="cb2-19"><a href="#cb2-19"></a>    <span class="co">/// sorted by named comparator `compare`</span></span>
+<span id="cb2-20"><a href="#cb2-20"></a>    <span class="kw">pub</span> <span class="kw">fn</span> sort_by&lt;T, N, F: <span class="bu">Fn</span>(&amp;T, &amp;T) -&gt; Ordering&gt;(</span>
+<span id="cb2-21"><a href="#cb2-21"></a>        <span class="kw">mut</span> vec: <span class="dt">Vec</span>&lt;T&gt;,</span>
+<span id="cb2-22"><a href="#cb2-22"></a>        compare: &amp;Named&lt;F, N&gt;</span>
+<span id="cb2-23"><a href="#cb2-23"></a>    ) -&gt; SortedBy&lt;T, N&gt; <span class="op">{</span></span>
+<span id="cb2-24"><a href="#cb2-24"></a>        vec.sort_by(compare.unname_ref());</span>
+<span id="cb2-25"><a href="#cb2-25"></a>        SortedBy <span class="op">{</span></span>
+<span id="cb2-26"><a href="#cb2-26"></a>            vec,</span>
+<span id="cb2-27"><a href="#cb2-27"></a>            _pd: PhantomData</span>
+<span id="cb2-28"><a href="#cb2-28"></a>        <span class="op">}</span></span>
+<span id="cb2-29"><a href="#cb2-29"></a>    <span class="op">}</span></span>
+<span id="cb2-30"><a href="#cb2-30"></a></span>
+<span id="cb2-31"><a href="#cb2-31"></a>    <span class="co">/// Merges `sorted1` and `sorted2` into a single vector</span></span>
+<span id="cb2-32"><a href="#cb2-32"></a>    <span class="co">/// sorted by the same comparator (`compare`) as `sorted1` and `sorted2`</span></span>
+<span id="cb2-33"><a href="#cb2-33"></a>    <span class="kw">pub</span> <span class="kw">fn</span> merge_by&lt;T, N, F: <span class="bu">Fn</span>(&amp;T, &amp;T) -&gt; Ordering&gt;(</span>
+<span id="cb2-34"><a href="#cb2-34"></a>        sorted1: SortedBy&lt;T, N&gt;,</span>
+<span id="cb2-35"><a href="#cb2-35"></a>        <span class="kw">mut</span> sorted2: SortedBy&lt;T, N&gt;,</span>
+<span id="cb2-36"><a href="#cb2-36"></a>        compare: &amp;Named&lt;F, N&gt;</span>
+<span id="cb2-37"><a href="#cb2-37"></a>    ) -&gt; SortedBy&lt;T, N&gt; <span class="op">{</span></span>
+<span id="cb2-38"><a href="#cb2-38"></a>        <span class="kw">let</span> <span class="kw">mut</span> v = sorted1.vec;</span>
+<span id="cb2-39"><a href="#cb2-39"></a>        v.append(&amp;<span class="kw">mut</span> sorted2.vec);</span>
+<span id="cb2-40"><a href="#cb2-40"></a>        v.sort_by(compare.unname_ref());</span>
+<span id="cb2-41"><a href="#cb2-41"></a>        SortedBy <span class="op">{</span></span>
+<span id="cb2-42"><a href="#cb2-42"></a>            vec: v,</span>
+<span id="cb2-43"><a href="#cb2-43"></a>            _pd: PhantomData</span>
+<span id="cb2-44"><a href="#cb2-44"></a>        <span class="op">}</span></span>
+<span id="cb2-45"><a href="#cb2-45"></a>    <span class="op">}</span></span>
+<span id="cb2-46"><a href="#cb2-46"></a><span class="op">}</span></span>
+<span id="cb2-47"><a href="#cb2-47"></a></span>
+<span id="cb2-48"><a href="#cb2-48"></a><span class="kw">use</span> <span class="pp">std::marker::</span>PhantomData;</span>
+<span id="cb2-49"><a href="#cb2-49"></a><span class="kw">use</span> <span class="pp">std::cmp::</span>Ordering;</span>
+<span id="cb2-50"><a href="#cb2-50"></a><span class="kw">use</span> <span class="pp">gdp::</span><span class="op">{</span>name, Named, NameFn<span class="op">}</span>;</span>
+<span id="cb2-51"><a href="#cb2-51"></a><span class="kw">use</span> <span class="pp">gdp_merge_by::</span>*;</span>
+<span id="cb2-52"><a href="#cb2-52"></a></span>
+<span id="cb2-53"><a href="#cb2-53"></a><span class="kw">struct</span> Comp <span class="op">{</span></span>
+<span id="cb2-54"><a href="#cb2-54"></a>    v1: <span class="dt">Vec</span>&lt;<span class="dt">u32</span>&gt;,</span>
+<span id="cb2-55"><a href="#cb2-55"></a>    v2: <span class="dt">Vec</span>&lt;<span class="dt">u32</span>&gt;</span>
+<span id="cb2-56"><a href="#cb2-56"></a><span class="op">}</span></span>
+<span id="cb2-57"><a href="#cb2-57"></a></span>
+<span id="cb2-58"><a href="#cb2-58"></a><span class="kw">impl</span> NameFn <span class="kw">for</span> Comp <span class="op">{</span></span>
+<span id="cb2-59"><a href="#cb2-59"></a>    <span class="kw">type</span> A = <span class="kw">fn</span>(&amp;<span class="dt">u32</span>, &amp;<span class="dt">u32</span>) -&gt; Ordering;</span>
+<span id="cb2-60"><a href="#cb2-60"></a>    <span class="kw">type</span> Output = <span class="dt">Vec</span>&lt;<span class="dt">u32</span>&gt;;</span>
+<span id="cb2-61"><a href="#cb2-61"></a></span>
+<span id="cb2-62"><a href="#cb2-62"></a>    <span class="kw">fn</span> call_once&lt;N&gt;(<span class="kw">self</span>, named: Named&lt;<span class="kw">Self</span>::A, N&gt;) -&gt; <span class="kw">Self</span>::Output <span class="op">{</span></span>
+<span id="cb2-63"><a href="#cb2-63"></a>        <span class="kw">let</span> sorted1 = sort_by(<span class="kw">self</span>.v1, &amp;named);</span>
+<span id="cb2-64"><a href="#cb2-64"></a>        <span class="kw">let</span> sorted2 = sort_by(<span class="kw">self</span>.v2, &amp;named);</span>
+<span id="cb2-65"><a href="#cb2-65"></a>        merge_by(sorted1, sorted2, &amp;named).vec()</span>
+<span id="cb2-66"><a href="#cb2-66"></a>    <span class="op">}</span></span>
+<span id="cb2-67"><a href="#cb2-67"></a><span class="op">}</span></span>
+<span id="cb2-68"><a href="#cb2-68"></a></span>
+<span id="cb2-69"><a href="#cb2-69"></a><span class="co">/// Read two Vecs of u32s from the user and sort them in ascending order then merge them</span></span>
+<span id="cb2-70"><a href="#cb2-70"></a><span class="co">/// user input:</span></span>
+<span id="cb2-71"><a href="#cb2-71"></a><span class="co">/// 1 5 2</span></span>
+<span id="cb2-72"><a href="#cb2-72"></a><span class="co">/// 2 9 7</span></span>
+<span id="cb2-73"><a href="#cb2-73"></a><span class="co">/// expect: vec![1, 2, 2, 5, 7, 9]</span></span>
+<span id="cb2-74"><a href="#cb2-74"></a><span class="kw">fn</span> sort_then_merge(v1: <span class="dt">Vec</span>&lt;<span class="dt">u32</span>&gt;, v2: <span class="dt">Vec</span>&lt;<span class="dt">u32</span>&gt;) -&gt; <span class="dt">Vec</span>&lt;<span class="dt">u32</span>&gt; <span class="op">{</span></span>
+<span id="cb2-75"><a href="#cb2-75"></a>    <span class="kw">let</span> f: <span class="kw">fn</span>(&amp;<span class="dt">u32</span>, &amp;<span class="dt">u32</span>) -&gt; Ordering = |a, b| a.cmp(b);</span>
+<span id="cb2-76"><a href="#cb2-76"></a>    name(f, Comp <span class="op">{</span> v1, v2 <span class="op">}</span>)</span>
+<span id="cb2-77"><a href="#cb2-77"></a><span class="op">}</span></span></code></pre></div>
+<p>We can generalize the GDP technique as well by adding the ability to attach proofs to values. We can then add type-level proof combinators to allows us to create more complicated proofs. Here is what that looks like in Rust:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode rust"><code class="sourceCode rust"><span id="cb3-1"><a href="#cb3-1"></a><span class="kw">use</span> <span class="pp">std::marker::</span>PhantomData;</span>
+<span id="cb3-2"><a href="#cb3-2"></a></span>
+<span id="cb3-3"><a href="#cb3-3"></a><span class="co">/// A proof that can be passed to a function to prove that a predicate has been satisfied.</span></span>
+<span id="cb3-4"><a href="#cb3-4"></a><span class="co">///</span></span>
+<span id="cb3-5"><a href="#cb3-5"></a><span class="co">/// Users should not be allowed to construct proofs directly. Library authors should</span></span>
+<span id="cb3-6"><a href="#cb3-6"></a><span class="co">/// ensure that their API provides the correct proofs for their library. `T` is a token</span></span>
+<span id="cb3-7"><a href="#cb3-7"></a><span class="co">/// type that library author can attach to proof values to ensure that the proofs came</span></span>
+<span id="cb3-8"><a href="#cb3-8"></a><span class="co">/// from their library.</span></span>
+<span id="cb3-9"><a href="#cb3-9"></a><span class="kw">pub</span> <span class="kw">struct</span> Proof&lt;P, T&gt;(<span class="kw">pub</span>(<span class="kw">crate</span>) PhantomData&lt;(P, T)&gt;);</span>
+<span id="cb3-10"><a href="#cb3-10"></a></span>
+<span id="cb3-11"><a href="#cb3-11"></a><span class="co">/// A value with a proof attached</span></span>
+<span id="cb3-12"><a href="#cb3-12"></a><span class="kw">pub</span> <span class="kw">struct</span> SuchThat&lt;A, P&gt; <span class="op">{</span></span>
+<span id="cb3-13"><a href="#cb3-13"></a>    value: A,</span>
+<span id="cb3-14"><a href="#cb3-14"></a>    _pd: PhantomData&lt;P&gt;,</span>
+<span id="cb3-15"><a href="#cb3-15"></a><span class="op">}</span></span>
+<span id="cb3-16"><a href="#cb3-16"></a></span>
+<span id="cb3-17"><a href="#cb3-17"></a><span class="kw">impl</span>&lt;A, P&gt; SuchThat&lt;A, P&gt; <span class="op">{</span></span>
+<span id="cb3-18"><a href="#cb3-18"></a>    <span class="co">/// Extracts the value from a proof-attached value</span></span>
+<span id="cb3-19"><a href="#cb3-19"></a>    <span class="kw">pub</span> <span class="kw">fn</span> value(<span class="kw">self</span>) -&gt; A <span class="op">{</span></span>
+<span id="cb3-20"><a href="#cb3-20"></a>        <span class="kw">self</span>.value</span>
+<span id="cb3-21"><a href="#cb3-21"></a>    <span class="op">}</span></span>
+<span id="cb3-22"><a href="#cb3-22"></a></span>
+<span id="cb3-23"><a href="#cb3-23"></a>    <span class="co">/// Returns a reference to the value of a proof-attached value</span></span>
+<span id="cb3-24"><a href="#cb3-24"></a>    <span class="kw">pub</span> <span class="kw">fn</span> value_ref(&amp;<span class="kw">self</span>) -&gt; &amp;A <span class="op">{</span></span>
+<span id="cb3-25"><a href="#cb3-25"></a>        &amp;<span class="kw">self</span>.value</span>
+<span id="cb3-26"><a href="#cb3-26"></a>    <span class="op">}</span></span>
+<span id="cb3-27"><a href="#cb3-27"></a><span class="op">}</span></span>
+<span id="cb3-28"><a href="#cb3-28"></a></span>
+<span id="cb3-29"><a href="#cb3-29"></a><span class="kw">impl</span>&lt;A, N, P&gt; SuchThat&lt;Named&lt;A, N&gt;, P&gt; <span class="op">{</span></span>
+<span id="cb3-30"><a href="#cb3-30"></a>    <span class="co">/// Extract the value from a proof-attached named value</span></span>
+<span id="cb3-31"><a href="#cb3-31"></a>    <span class="kw">pub</span> <span class="kw">fn</span> extract(<span class="kw">self</span>) -&gt; A <span class="op">{</span></span>
+<span id="cb3-32"><a href="#cb3-32"></a>        <span class="kw">self</span>.value().unname()</span>
+<span id="cb3-33"><a href="#cb3-33"></a>    <span class="op">}</span></span>
+<span id="cb3-34"><a href="#cb3-34"></a></span>
+<span id="cb3-35"><a href="#cb3-35"></a>    <span class="co">/// Returns a reference to the value of a proof-attached named value</span></span>
+<span id="cb3-36"><a href="#cb3-36"></a>    <span class="kw">pub</span> <span class="kw">fn</span> extract_ref(&amp;<span class="kw">self</span>) -&gt; &amp;A <span class="op">{</span></span>
+<span id="cb3-37"><a href="#cb3-37"></a>        <span class="kw">self</span>.value_ref().unname_ref()</span>
+<span id="cb3-38"><a href="#cb3-38"></a>    <span class="op">}</span></span>
+<span id="cb3-39"><a href="#cb3-39"></a><span class="op">}</span></span>
+<span id="cb3-40"><a href="#cb3-40"></a></span>
+<span id="cb3-41"><a href="#cb3-41"></a><span class="co">/// Attaches a proof to a value</span></span>
+<span id="cb3-42"><a href="#cb3-42"></a><span class="kw">pub</span> <span class="kw">fn</span> with_proof&lt;A, P, T&gt;(value: A, _proof: &amp;Proof&lt;P, T&gt;) -&gt; SuchThat&lt;A, P&gt; <span class="op">{</span></span>
+<span id="cb3-43"><a href="#cb3-43"></a>    SuchThat <span class="op">{</span></span>
+<span id="cb3-44"><a href="#cb3-44"></a>        value,</span>
+<span id="cb3-45"><a href="#cb3-45"></a>        _pd: PhantomData,</span>
+<span id="cb3-46"><a href="#cb3-46"></a>    <span class="op">}</span></span>
+<span id="cb3-47"><a href="#cb3-47"></a><span class="op">}</span></span>
+<span id="cb3-48"><a href="#cb3-48"></a></span>
+<span id="cb3-49"><a href="#cb3-49"></a><span class="co">/// Type-level boolean value `True`</span></span>
+<span id="cb3-50"><a href="#cb3-50"></a><span class="kw">pub</span> <span class="kw">struct</span> True(PhantomData&lt;()&gt;);</span>
+<span id="cb3-51"><a href="#cb3-51"></a></span>
+<span id="cb3-52"><a href="#cb3-52"></a><span class="co">/// Type-level boolean value `False`</span></span>
+<span id="cb3-53"><a href="#cb3-53"></a><span class="kw">pub</span> <span class="kw">struct</span> False(PhantomData&lt;()&gt;);</span>
+<span id="cb3-54"><a href="#cb3-54"></a></span>
+<span id="cb3-55"><a href="#cb3-55"></a><span class="co">/// Type-level logical conjunction</span></span>
+<span id="cb3-56"><a href="#cb3-56"></a><span class="kw">pub</span> <span class="kw">struct</span> And&lt;P, Q&gt;(PhantomData&lt;(P, Q)&gt;);</span>
+<span id="cb3-57"><a href="#cb3-57"></a></span>
+<span id="cb3-58"><a href="#cb3-58"></a><span class="co">/// Type-level logical disjunction</span></span>
+<span id="cb3-59"><a href="#cb3-59"></a><span class="kw">pub</span> <span class="kw">struct</span> Or&lt;P, Q&gt;(PhantomData&lt;(P, Q)&gt;);</span>
+<span id="cb3-60"><a href="#cb3-60"></a></span>
+<span id="cb3-61"><a href="#cb3-61"></a><span class="co">/// Type-level logical implication</span></span>
+<span id="cb3-62"><a href="#cb3-62"></a><span class="kw">pub</span> <span class="kw">struct</span> Implies&lt;P, Q&gt;(PhantomData&lt;(P, Q)&gt;);</span>
+<span id="cb3-63"><a href="#cb3-63"></a></span>
+<span id="cb3-64"><a href="#cb3-64"></a><span class="co">/// Type-level logical negation</span></span>
+<span id="cb3-65"><a href="#cb3-65"></a><span class="kw">pub</span> <span class="kw">struct</span> Not&lt;P&gt;(PhantomData&lt;P&gt;);</span>
+<span id="cb3-66"><a href="#cb3-66"></a></span>
+<span id="cb3-67"><a href="#cb3-67"></a><span class="co">/// Type-level logical equality</span></span>
+<span id="cb3-68"><a href="#cb3-68"></a><span class="kw">pub</span> <span class="kw">struct</span> Equals&lt;P, Q&gt;(PhantomData&lt;(P, Q)&gt;);</span>
+<span id="cb3-69"><a href="#cb3-69"></a></span>
+<span id="cb3-70"><a href="#cb3-70"></a><span class="co">/// Introduces a conjunction into a type-level logical proof</span></span>
+<span id="cb3-71"><a href="#cb3-71"></a><span class="kw">pub</span> <span class="kw">fn</span> and_intro&lt;P, Q, T&gt;(_p: &amp;Proof&lt;P, T&gt;, _q: &amp;Proof&lt;Q, T&gt;) -&gt; Proof&lt;And&lt;P, Q&gt;, T&gt; <span class="op">{</span></span>
+<span id="cb3-72"><a href="#cb3-72"></a>    Proof(PhantomData)</span>
+<span id="cb3-73"><a href="#cb3-73"></a><span class="op">}</span></span>
+<span id="cb3-74"><a href="#cb3-74"></a></span>
+<span id="cb3-75"><a href="#cb3-75"></a><span class="co">/// Extracts the left conjunct from a type-level logical conjunction</span></span>
+<span id="cb3-76"><a href="#cb3-76"></a><span class="kw">pub</span> <span class="kw">fn</span> and_elim_l&lt;P, Q, T&gt;(_and: &amp;Proof&lt;And&lt;P, Q&gt;, T&gt;) -&gt; Proof&lt;P, T&gt; <span class="op">{</span></span>
+<span id="cb3-77"><a href="#cb3-77"></a>    Proof(PhantomData)</span>
+<span id="cb3-78"><a href="#cb3-78"></a><span class="op">}</span></span>
+<span id="cb3-79"><a href="#cb3-79"></a></span>
+<span id="cb3-80"><a href="#cb3-80"></a><span class="co">/// Extracts the right conjunct from a type-level logical conjunction</span></span>
+<span id="cb3-81"><a href="#cb3-81"></a><span class="kw">pub</span> <span class="kw">fn</span> and_elim_r&lt;P, Q, T&gt;(_and: &amp;Proof&lt;And&lt;P, Q&gt;, T&gt;) -&gt; Proof&lt;Q, T&gt; <span class="op">{</span></span>
+<span id="cb3-82"><a href="#cb3-82"></a>    Proof(PhantomData)</span>
+<span id="cb3-83"><a href="#cb3-83"></a><span class="op">}</span></span>
+<span id="cb3-84"><a href="#cb3-84"></a></span>
+<span id="cb3-85"><a href="#cb3-85"></a><span class="co">/// Introduces a disjunction into a type-level logical proof, given a left disjunct</span></span>
+<span id="cb3-86"><a href="#cb3-86"></a><span class="kw">pub</span> <span class="kw">fn</span> or_intro_l&lt;P, Q, T&gt;(_p: &amp;Proof&lt;P, T&gt;) -&gt; Proof&lt;Or&lt;P, Q&gt;, T&gt; <span class="op">{</span></span>
+<span id="cb3-87"><a href="#cb3-87"></a>    Proof(PhantomData)</span>
+<span id="cb3-88"><a href="#cb3-88"></a><span class="op">}</span></span>
+<span id="cb3-89"><a href="#cb3-89"></a></span>
+<span id="cb3-90"><a href="#cb3-90"></a><span class="co">/// Introduces a disjunction into a type-level logical proof, given a left disjunct</span></span>
+<span id="cb3-91"><a href="#cb3-91"></a><span class="kw">pub</span> <span class="kw">fn</span> or_intro_r&lt;P, Q, T&gt;(_q: &amp;Proof&lt;Q, T&gt;) -&gt; Proof&lt;Or&lt;P, Q&gt;, T&gt; <span class="op">{</span></span>
+<span id="cb3-92"><a href="#cb3-92"></a>    Proof(PhantomData)</span>
+<span id="cb3-93"><a href="#cb3-93"></a><span class="op">}</span></span>
+<span id="cb3-94"><a href="#cb3-94"></a></span>
+<span id="cb3-95"><a href="#cb3-95"></a><span class="co">/// Eliminates a type-level logical disjunction (proof by cases)</span></span>
+<span id="cb3-96"><a href="#cb3-96"></a><span class="kw">pub</span> <span class="kw">fn</span> elim_or&lt;P, Q, R, T&gt;(</span>
+<span id="cb3-97"><a href="#cb3-97"></a>    _p_to_r: <span class="kw">fn</span>(Proof&lt;P, T&gt;) -&gt; Proof&lt;R, T&gt;,</span>
+<span id="cb3-98"><a href="#cb3-98"></a>    _q_to_r: <span class="kw">fn</span>(Proof&lt;Q, T&gt;) -&gt; Proof&lt;R, T&gt;,</span>
+<span id="cb3-99"><a href="#cb3-99"></a>    _or: &amp;Proof&lt;Or&lt;P, Q&gt;, T&gt;,</span>
+<span id="cb3-100"><a href="#cb3-100"></a>) -&gt; Proof&lt;R, T&gt; <span class="op">{</span></span>
+<span id="cb3-101"><a href="#cb3-101"></a>    Proof(PhantomData)</span>
+<span id="cb3-102"><a href="#cb3-102"></a><span class="op">}</span></span>
+<span id="cb3-103"><a href="#cb3-103"></a></span>
+<span id="cb3-104"><a href="#cb3-104"></a><span class="co">/// Introduces an implication into a type-level logical proof</span></span>
+<span id="cb3-105"><a href="#cb3-105"></a><span class="kw">pub</span> <span class="kw">fn</span> implies_intro&lt;P, Q, T&gt;(_f: <span class="kw">fn</span>(Proof&lt;P, T&gt;) -&gt; Proof&lt;Q, T&gt;) -&gt; Proof&lt;Implies&lt;P, Q&gt;, T&gt; <span class="op">{</span></span>
+<span id="cb3-106"><a href="#cb3-106"></a>    Proof(PhantomData)</span>
+<span id="cb3-107"><a href="#cb3-107"></a><span class="op">}</span></span>
+<span id="cb3-108"><a href="#cb3-108"></a></span>
+<span id="cb3-109"><a href="#cb3-109"></a><span class="co">/// Eliminates an implication from a type-level logical proof</span></span>
+<span id="cb3-110"><a href="#cb3-110"></a><span class="kw">pub</span> <span class="kw">fn</span> implies_elim&lt;P, Q, T&gt;(_implies: &amp;Proof&lt;Implies&lt;P, Q&gt;, T&gt;, _p: &amp;Proof&lt;P, T&gt;) -&gt; Proof&lt;Q, T&gt; <span class="op">{</span></span>
+<span id="cb3-111"><a href="#cb3-111"></a>    Proof(PhantomData)</span>
+<span id="cb3-112"><a href="#cb3-112"></a><span class="op">}</span></span>
+<span id="cb3-113"><a href="#cb3-113"></a></span>
+<span id="cb3-114"><a href="#cb3-114"></a><span class="kw">pub</span> <span class="kw">fn</span> not_intro&lt;P, T&gt;(_f: <span class="kw">fn</span>(Proof&lt;P, T&gt;) -&gt; Proof&lt;False, T&gt;) -&gt; Proof&lt;Not&lt;P&gt;, T&gt; <span class="op">{</span></span>
+<span id="cb3-115"><a href="#cb3-115"></a>    Proof(PhantomData)</span>
+<span id="cb3-116"><a href="#cb3-116"></a><span class="op">}</span></span>
+<span id="cb3-117"><a href="#cb3-117"></a></span>
+<span id="cb3-118"><a href="#cb3-118"></a><span class="kw">pub</span> <span class="kw">fn</span> contradicts&lt;P, T&gt;(_p: &amp;Proof&lt;P, T&gt;, _not_p: &amp;Proof&lt;Not&lt;P&gt;, T&gt;) -&gt; Proof&lt;False, T&gt; <span class="op">{</span></span>
+<span id="cb3-119"><a href="#cb3-119"></a>    Proof(PhantomData)</span>
+<span id="cb3-120"><a href="#cb3-120"></a><span class="op">}</span></span>
+<span id="cb3-121"><a href="#cb3-121"></a></span>
+<span id="cb3-122"><a href="#cb3-122"></a><span class="kw">pub</span> <span class="kw">fn</span> absurd&lt;P, T&gt;(_false: &amp;Proof&lt;False, T&gt;) -&gt; Proof&lt;P, T&gt; <span class="op">{</span></span>
+<span id="cb3-123"><a href="#cb3-123"></a>    Proof(PhantomData)</span>
+<span id="cb3-124"><a href="#cb3-124"></a><span class="op">}</span></span>
+<span id="cb3-125"><a href="#cb3-125"></a></span>
+<span id="cb3-126"><a href="#cb3-126"></a><span class="kw">pub</span> <span class="kw">fn</span> refl&lt;X, T&gt;() -&gt; Proof&lt;Equals&lt;X, X&gt;, T&gt; <span class="op">{</span></span>
+<span id="cb3-127"><a href="#cb3-127"></a>    Proof(PhantomData)</span>
+<span id="cb3-128"><a href="#cb3-128"></a><span class="op">}</span></span>
+<span id="cb3-129"><a href="#cb3-129"></a></span>
+<span id="cb3-130"><a href="#cb3-130"></a><span class="co">/// Creates a proof of a given type.</span></span>
+<span id="cb3-131"><a href="#cb3-131"></a><span class="co">///</span></span>
+<span id="cb3-132"><a href="#cb3-132"></a><span class="co">/// This function requires a token type `T` to prevent users</span></span>
+<span id="cb3-133"><a href="#cb3-133"></a><span class="co">/// from using it to create arbitrary proofs.</span></span>
+<span id="cb3-134"><a href="#cb3-134"></a><span class="kw">pub</span> <span class="kw">fn</span> axiom&lt;P, T&gt;(_token: T) -&gt; Proof&lt;P, T&gt; <span class="op">{</span></span>
+<span id="cb3-135"><a href="#cb3-135"></a>    Proof(PhantomData)</span>
+<span id="cb3-136"><a href="#cb3-136"></a><span class="op">}</span></span></code></pre></div>
+<p>That's a lot to absorb, so let's break it down. Everything from the top down to <code>with_proof</code> is for attaching a proof to or extracting a proof from a value. The rest of the code defines the type-level booleans and proof combinators. The <code>axiom</code> method is used to create arbitrary proofs, which should not be called by API users. In this case, I modified the definition a little so it's a bit different from the original paper. Here, I tried to make it so that only library authors could call axiom by forcing callers to pass some kind of token that they can construct. In Haskell, this isn't enforced because there are many ways to break the type system anyway and the API is only meant to protect against programmer errors, not malice. However, Rust has its own definition of safety enforced by its <code>unsafe</code> keyword, so I tried to make sure this could allow users to write code that calls <code>unsafe</code> code without leaking <code>unsafe</code> into all of the caller code. Of course, Rust's type system isn't completely sound due to some compiler bugs, so maybe this isn't all that helpful, but this is all experimental anyway. I never really verified the soundness of this approach, I admit.</p>
+<p>Here is an example of how to use this API:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode rust"><code class="sourceCode rust"><span id="cb4-1"><a href="#cb4-1"></a><span class="kw">pub</span> <span class="kw">mod</span> gdp_vec <span class="op">{</span></span>
+<span id="cb4-2"><a href="#cb4-2"></a>    <span class="kw">use</span> <span class="kw">super</span>::<span class="pp">gdp::</span>*;</span>
+<span id="cb4-3"><a href="#cb4-3"></a>    <span class="kw">use</span> <span class="pp">std::marker::</span>PhantomData;</span>
+<span id="cb4-4"><a href="#cb4-4"></a></span>
+<span id="cb4-5"><a href="#cb4-5"></a>    <span class="kw">pub</span> <span class="kw">struct</span> VecPrf(PhantomData&lt;()&gt;);</span>
+<span id="cb4-6"><a href="#cb4-6"></a></span>
+<span id="cb4-7"><a href="#cb4-7"></a>    <span class="co">/// The predicate &quot;HasElemAt(Xs, Index)&quot; which is true when there is an element at Index in Xs</span></span>
+<span id="cb4-8"><a href="#cb4-8"></a>    <span class="kw">pub</span> <span class="kw">struct</span> HasElemAt&lt;Xs, Index&gt; <span class="op">{</span></span>
+<span id="cb4-9"><a href="#cb4-9"></a>        _pd: PhantomData&lt;(Xs, Index)&gt;,</span>
+<span id="cb4-10"><a href="#cb4-10"></a>    <span class="op">}</span></span>
+<span id="cb4-11"><a href="#cb4-11"></a></span>
+<span id="cb4-12"><a href="#cb4-12"></a>    <span class="co">/// Name for index</span></span>
+<span id="cb4-13"><a href="#cb4-13"></a>    <span class="kw">pub</span> <span class="kw">struct</span> Index&lt;Xs&gt; <span class="op">{</span></span>
+<span id="cb4-14"><a href="#cb4-14"></a>        _pd: PhantomData&lt;Xs&gt;,</span>
+<span id="cb4-15"><a href="#cb4-15"></a>    <span class="op">}</span></span>
+<span id="cb4-16"><a href="#cb4-16"></a></span>
+<span id="cb4-17"><a href="#cb4-17"></a>    <span class="co">/// Attaches a name to `index`</span></span>
+<span id="cb4-18"><a href="#cb4-18"></a>    <span class="kw">pub</span> <span class="kw">fn</span> name_index&lt;T, Xs&gt;(index: <span class="dt">usize</span>, _v: &amp;<span class="pp">gdp!</span>(<span class="dt">Vec</span>&lt;T&gt;, named Xs)) -&gt; <span class="pp">gdp!</span>(<span class="dt">usize</span>, named Index&lt;Xs&gt;) <span class="op">{</span></span>
+<span id="cb4-19"><a href="#cb4-19"></a>        lib_name(index, Index <span class="op">{</span> _pd: PhantomData <span class="op">}</span>)</span>
+<span id="cb4-20"><a href="#cb4-20"></a>    <span class="op">}</span></span>
+<span id="cb4-21"><a href="#cb4-21"></a></span>
+<span id="cb4-22"><a href="#cb4-22"></a>    <span class="co">/// Returns a proof of whether or not an element at the given index can be found in v</span></span>
+<span id="cb4-23"><a href="#cb4-23"></a>    <span class="kw">pub</span> <span class="kw">fn</span> elem_at_exists&lt;T, Xs&gt;(</span>
+<span id="cb4-24"><a href="#cb4-24"></a>        index: &amp;<span class="pp">gdp!</span>(<span class="dt">usize</span>, named Index&lt;Xs&gt;),</span>
+<span id="cb4-25"><a href="#cb4-25"></a>        v: &amp;<span class="pp">gdp!</span>(<span class="dt">Vec</span>&lt;T&gt;, named Xs),</span>
+<span id="cb4-26"><a href="#cb4-26"></a>    ) -&gt; <span class="dt">Option</span>&lt;Proof&lt;HasElemAt&lt;Xs, Index&lt;Xs&gt;&gt;, VecPrf&gt;&gt; <span class="op">{</span></span>
+<span id="cb4-27"><a href="#cb4-27"></a>        <span class="kw">if</span> *index.unname_ref() &gt;= v.unname_ref().len() <span class="op">{</span></span>
+<span id="cb4-28"><a href="#cb4-28"></a>            <span class="cn">None</span></span>
+<span id="cb4-29"><a href="#cb4-29"></a>        <span class="op">}</span> <span class="kw">else</span> <span class="op">{</span></span>
+<span id="cb4-30"><a href="#cb4-30"></a>            <span class="cn">Some</span>(axiom(VecPrf(PhantomData)))</span>
+<span id="cb4-31"><a href="#cb4-31"></a>        <span class="op">}</span></span>
+<span id="cb4-32"><a href="#cb4-32"></a>    <span class="op">}</span></span>
+<span id="cb4-33"><a href="#cb4-33"></a></span>
+<span id="cb4-34"><a href="#cb4-34"></a>    <span class="kw">pub</span> <span class="kw">fn</span> get&lt;<span class="ot">'a</span>, <span class="ot">'b</span>, Xs, T&gt;(</span>
+<span id="cb4-35"><a href="#cb4-35"></a>        index: &amp;<span class="ot">'a</span> <span class="pp">gdp!</span>(<span class="dt">usize</span>, named Index&lt;Xs&gt;),</span>
+<span id="cb4-36"><a href="#cb4-36"></a>        v: &amp;<span class="ot">'b</span> <span class="pp">gdp!</span>(<span class="dt">Vec</span>&lt;T&gt;, named Xs <span class="kw">where</span> HasElemAt&lt;Xs, Index&lt;Xs&gt;&gt;),</span>
+<span id="cb4-37"><a href="#cb4-37"></a>    ) -&gt; &amp;<span class="ot">'b</span> T <span class="op">{</span></span>
+<span id="cb4-38"><a href="#cb4-38"></a>        &amp;v.extract_ref()<span class="op">[</span>*index.unname_ref()<span class="op">]</span></span>
+<span id="cb4-39"><a href="#cb4-39"></a>    <span class="op">}</span></span>
+<span id="cb4-40"><a href="#cb4-40"></a><span class="op">}</span></span>
+<span id="cb4-41"><a href="#cb4-41"></a></span>
+<span id="cb4-42"><a href="#cb4-42"></a><span class="kw">use</span> <span class="kw">crate</span>::<span class="pp">gdp::</span>*;</span>
+<span id="cb4-43"><a href="#cb4-43"></a><span class="kw">use</span> <span class="kw">crate</span>::<span class="pp">gdp_vec::</span>*;</span>
+<span id="cb4-44"><a href="#cb4-44"></a></span>
+<span id="cb4-45"><a href="#cb4-45"></a><span class="kw">struct</span> VecFn;</span>
+<span id="cb4-46"><a href="#cb4-46"></a></span>
+<span id="cb4-47"><a href="#cb4-47"></a><span class="kw">impl</span> NameFn <span class="kw">for</span> VecFn <span class="op">{</span></span>
+<span id="cb4-48"><a href="#cb4-48"></a>    <span class="kw">type</span> Input = <span class="dt">Vec</span>&lt;<span class="dt">u32</span>&gt;;</span>
+<span id="cb4-49"><a href="#cb4-49"></a>    <span class="kw">type</span> Output = ();</span>
+<span id="cb4-50"><a href="#cb4-50"></a></span>
+<span id="cb4-51"><a href="#cb4-51"></a>    <span class="kw">fn</span> call&lt;Xs&gt;(<span class="kw">self</span>, named_vec: Named&lt;<span class="kw">Self</span>::Input, Xs&gt;) -&gt; <span class="kw">Self</span>::Output <span class="op">{</span></span>
+<span id="cb4-52"><a href="#cb4-52"></a>        <span class="kw">let</span> named_index = name_index(<span class="dv">1</span>, &amp;named_vec);</span>
+<span id="cb4-53"><a href="#cb4-53"></a>        <span class="kw">let</span> proof = elem_at_exists(&amp;named_index, &amp;named_vec)</span>
+<span id="cb4-54"><a href="#cb4-54"></a>            .expect(&amp;<span class="pp">format!</span>(<span class="st">&quot;No element at index: {}&quot;</span>, named_index.unname_ref().to_string()));</span>
+<span id="cb4-55"><a href="#cb4-55"></a>        <span class="kw">let</span> vec_with_proof = with_proof(named_vec, &amp;proof);</span>
+<span id="cb4-56"><a href="#cb4-56"></a>        <span class="kw">let</span> four = get(&amp;named_index, &amp;vec_with_proof);</span>
+<span id="cb4-57"><a href="#cb4-57"></a>        <span class="pp">println!</span>(<span class="st">&quot;{}&quot;</span>, four);</span>
+<span id="cb4-58"><a href="#cb4-58"></a>    <span class="op">}</span></span>
+<span id="cb4-59"><a href="#cb4-59"></a><span class="op">}</span></span>
+<span id="cb4-60"><a href="#cb4-60"></a></span>
+<span id="cb4-61"><a href="#cb4-61"></a><span class="kw">fn</span> main() <span class="op">{</span></span>
+<span id="cb4-62"><a href="#cb4-62"></a>    <span class="kw">let</span> vec: <span class="dt">Vec</span>&lt;<span class="dt">u32</span>&gt; = <span class="pp">vec!</span><span class="op">[</span><span class="dv">1</span>, <span class="dv">4</span>, <span class="dv">7</span><span class="op">]</span>;</span>
+<span id="cb4-63"><a href="#cb4-63"></a>    name(vec, VecFn);</span>
+<span id="cb4-64"><a href="#cb4-64"></a><span class="op">}</span></span></code></pre></div>
+<p>Here, I have created an API where callers needs to prove that an element exists at an index before they can index into a vector. This isn't the typical way to define such an API (see Rust's array type), but I think it gets the point across. Users must check if the vector has an element at an index, which returns an <code>Option</code> potentially containing proof of that element existing at the desired index. This proof can then be attached to the named vector, which allows <code>get</code> to be called. Now the user does not have to deal with a <code>Some</code> value after calling <code>get</code>, since they already proved that there is a value at the given index. This properly allows the user to express what they want to the compiler, which better reflects their state of knowledge. Of course, the user won't always be able to prove that an element exists at a desired index, but <code>Vec</code> already has its usual API that returns <code>Option</code> values in that case.</p>
+<h1 id="the-catch">The Catch</h1>
+<p>Unfortunately, this technique is not very ergonomic in Rust. This is partially due to the fact that Rust does not support defining infix type operators. However, even if Rust did support them, we would still have ergonomics issues with rank-N types, since we have to emulate them in an unwieldy fashion. Also, many people dislike the kinds of errors produced when using type-level programming, as they can be quite difficult to read.</p>
+<h1 id="is-there-a-better-solution">Is there a better solution?</h1>
+<p>Recently, I have been reading about the Idris programming language and its dependent types. Essentially, dependent types are types that can depend on values, which means that types are first-class. They can be passed into functions and stored in variables, just like values. Thus, type parameters and regular parameters are unified. What the GDP technique enables is similar to what dependent types allow, but dependent types would give us much better ergonomics and none of the hard to read type-level errors. The team working on the Rust language has apparently considered this in the past, but deemed it too difficult to implement dependent types. However, Rust's array type constructor is already parameterized by a value (array length), so dependent typing already has a bit of a foothold in the language.</p>
+<p>One of the items on the 2019 roadmap for Rust was <code>const</code> generics, which would allow the usage of constant values where generic type parameters are. While the initial implementation would not allow them to be used in expressions, it would certainly open the door to that as a possibility, which would bring us much closer to dependent types. Sadly, it seems that progress this year was fairly slow and not much of the roadmap was completed, including <code>const</code> generics. It is quite unlikely that we will see this feature stabilize with expression support in the near future, so GDP and other type-level techniques will have to do for now.</p>
+    </section>
+</article>
+
+        </main>
+
+        <footer>
+            Site proudly generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </footer>
+    </body>
+</html>

@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>My Hakyll Blog - Env-IO':' A port of ZIO to Rust</title>
+        <link rel="stylesheet" href="../css/default.css" />
+    </head>
+    <body>
+        <header>
+            <div class="logo">
+                <a href="../">My Hakyll Blog</a>
+            </div>
+            <nav>
+                <a href="../">Home</a>
+                <a href="../about.html">About</a>
+                <a href="../contact.html">Contact</a>
+                <a href="../archive.html">Archive</a>
+            </nav>
+        </header>
+
+        <main role="main">
+            <h1>Env-IO':' A port of ZIO to Rust</h1>
+            <article>
+    <section class="header">
+        Posted on July 28, 2019
+        
+    </section>
+    <section>
+        <p>EDIT1 (2019-07-30): I have since found a way to implement this without using <code>unsafe</code> at all. I have added the updated code at the end of this post.</p>
+<p>Aside: I did mention a couple blog posts ago that I would write a bit about my latest game, <em>Stay Sharp!</em>, but I want to postpone that until I have something a bit more substantial to say about the project.</p>
+<h2 id="about-env-io">About Env-IO</h2>
+<p>Env-IO is a fun little side project that I have been working on from time to time when I get stuck or bored from working on games. It is a library for purely functional programming in Rust through trifunctor IO. As the title of this post suggests, this is simply a port of the Scala library, <a href="https://github.com/zio/zio">ZIO</a>. Env-IO can be found <a href="https://github.com/jonathanrlouie/env-io">here</a>, but it is currently unfinished. As a result of working on this project, I have learned a lot about traits, some limitations of Rust, how free monad interpreters work, and how to use <code>unsafe</code>. Since I feel as though I am close to having a working port that supports synchronous effects, I felt like this was a good time to talk a bit about the process of porting this library.</p>
+<h2 id="why-env-io">Why Env-IO?</h2>
+<p>Admittedly, Env-IO may be a bit out of place in the Rust ecosystem. Rust already makes mutations quite safe with its compiler enforced rules around mutability of variables and mutable references. However, I figured that some people might want to try pure FP in Rust, and there weren't really any other good libraries for doing so.</p>
+<p>One of the main motivations for using ZIO in Scala is faster, purely functional programming. This is achieved by using a technique known as effect rotation. For context, let's say I have some type that needs to be able to encode nullability, the ability to perform some kind of side-effect, and fallibility. Assuming Rust has some basic kind of IO monad, maybe from some generic IO monad crate, we might represent this type like so:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode rust"><code class="sourceCode rust"><span id="cb1-1"><a href="#cb1-1"></a><span class="dt">Result</span>&lt;<span class="dt">Option</span>&lt;IO&lt;A&gt;&gt;, E&gt;</span></code></pre></div>
+<p>If we want to treat this type as a monad, we will have to nest our calls to <code>and_then</code> because these effects are stacked vertically. In Scala, we would have to write monad tranformers and there would be extra allocations, which would be quite expensive. This would probably be a bit cheaper in Rust due to fewer allocations, but the monad transformers are still a bit of extra boilerplate. We can avoid using monad transformers and flatten our types by using effect rotation to compose effects horizontally. For example, we would change the represention of the above type to the following:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode rust"><code class="sourceCode rust"><span id="cb2-1"><a href="#cb2-1"></a>EnvIO&lt;A, E&gt;</span></code></pre></div>
+<p>So this brings us to bifunctor IO, which is how ZIO used to be implemented. ZIO ended up switching to trifunctor IO, as explained in <a href="https://skillsmatter.com/skillscasts/13247-scala-matters">this talk</a>, which is why <code>EnvIO</code> is implemented as a trifunctor. Specifically, the addition of the reader effect to ZIO makes it more testable. Typically, the final tagless approach might be used instead of adding a reader effect like this, but, as mentioned in the talk, it is very difficult to use with a bifunctor. It also comes with a plethora of other drawbacks, such as requiring users to understand advanced FP material, such as higher-kinded types. Since Rust does not support HKTs and ZIO specifically avoids them, this actually works out quite nicely when porting ZIO to Rust. Thus, we arrive at the <code>EnvIO&lt;R, A, E&gt;</code> trifunctor (analogous to <code>ZIO[R, E, A]</code>). For the curious, I swapped the type arguments <code>A</code> and <code>E</code> simply because Rust's <code>Result</code> type constructor is left-biased.</p>
+<h2 id="how-env-io-was-built">How Env-IO was Built</h2>
+<p>As we all know by now, Rust is a very restrictive language. It lacks subtyping (outside of lifetimes) and enforces an affine type system at compile time. It also forces the programmer to be very explicit about heap usage. These factors alone are enough to make porting just about any library from another language non-trivial. This includes zero-dependency libraries, such as ZIO. In order to demonstrate just how difficult this was to port, I will be walking you through the process of constructing Env-IO.</p>
+<p>For background, the process of purely functional programming in Env-IO (and also free monads) centers around defining a value level programming language. To achieve this, we define a set of instructions that the library user can build a tree out of, which will later be interpreted by the <code>EnvIO</code> interpreter. In this case, when dealing with side-effects, such as a <code>println!</code>, we lift them into an <code>Effect</code> instruction, like so:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode rust"><code class="sourceCode rust"><span id="cb3-1"><a href="#cb3-1"></a><span class="co">// Our set of instructions</span></span>
+<span id="cb3-2"><a href="#cb3-2"></a><span class="kw">enum</span> EnvIO&lt;R, A, E&gt; <span class="op">{</span></span>
+<span id="cb3-3"><a href="#cb3-3"></a>    Effect(<span class="dt">Box</span>&lt;dyn <span class="bu">Fn</span>() -&gt; <span class="dt">Box</span>&lt;A&gt;&gt;),</span>
+<span id="cb3-4"><a href="#cb3-4"></a>    ...</span>
+<span id="cb3-5"><a href="#cb3-5"></a><span class="op">}</span></span>
+<span id="cb3-6"><a href="#cb3-6"></a></span>
+<span id="cb3-7"><a href="#cb3-7"></a><span class="kw">fn</span> effect&lt;R, A, E, F: <span class="ot">'static</span>&gt;(eff: F) -&gt; EnvIO&lt;R, A, E&gt; <span class="kw">where</span> F: <span class="bu">Fn</span>() -&gt; <span class="dt">Box</span>&lt;A&gt; <span class="op">{</span></span>
+<span id="cb3-8"><a href="#cb3-8"></a>    <span class="pp">EnvIO::</span>Effect(<span class="dt">Box</span>::new(eff))</span>
+<span id="cb3-9"><a href="#cb3-9"></a><span class="op">}</span></span>
+<span id="cb3-10"><a href="#cb3-10"></a></span>
+<span id="cb3-11"><a href="#cb3-11"></a><span class="co">// Note that Rust does not have by-name parameters, unlike Scala.</span></span>
+<span id="cb3-12"><a href="#cb3-12"></a><span class="co">// We can add a macro to make lifting statements into values a bit more ergonomic.</span></span>
+<span id="cb3-13"><a href="#cb3-13"></a><span class="pp">macro_rules!</span> effect <span class="op">{</span></span>
+<span id="cb3-14"><a href="#cb3-14"></a>    ($e:expr) =&gt; <span class="op">{</span></span>
+<span id="cb3-15"><a href="#cb3-15"></a>        <span class="op">{</span></span>
+<span id="cb3-16"><a href="#cb3-16"></a>            $<span class="pp">crate::</span>effect(<span class="kw">move</span> || <span class="dt">Box</span>::new($e))</span>
+<span id="cb3-17"><a href="#cb3-17"></a>        <span class="op">}</span></span>
+<span id="cb3-18"><a href="#cb3-18"></a>    <span class="op">}</span></span>
+<span id="cb3-19"><a href="#cb3-19"></a><span class="op">}</span></span>
+<span id="cb3-20"><a href="#cb3-20"></a></span>
+<span id="cb3-21"><a href="#cb3-21"></a><span class="kw">fn</span> main() <span class="op">{</span></span>
+<span id="cb3-22"><a href="#cb3-22"></a>    <span class="kw">let</span> effect_instr = <span class="pp">effect!</span>(<span class="pp">println!</span>(<span class="st">&quot;hello world&quot;</span>));</span>
+<span id="cb3-23"><a href="#cb3-23"></a>    ...</span>
+<span id="cb3-24"><a href="#cb3-24"></a><span class="op">}</span></span></code></pre></div>
+<p>In this case, <code>println!("hello world")</code> is not going to be executed at all, since the macro will rewrite this code as an anonymous function. Thus, the actual printing does not happen until the instruction is processed by the <code>EnvIO</code> interpreter later on. We've defined our first instruction! Wahoo! Unfortunately, it can't really help us much on its own. We have no way of chaining together statements. For example, we can't really represent a program like this one:</p>
+<pre><code>println!(&quot;hello world&quot;);
+println!(&quot;meow&quot;);</code></pre>
+<p>We need some kind of binding instruction that allows us to chain two effects together. Something like a monadic <code>bind</code> function. Let's add a FlatMap instruction:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode rust"><code class="sourceCode rust"><span id="cb5-1"><a href="#cb5-1"></a><span class="co">// A newtype wrapper for Kleisli arrows.</span></span>
+<span id="cb5-2"><a href="#cb5-2"></a><span class="co">// A Kleisli arrow is basically just a function A =&gt; F[B]. The term comes from category theory.</span></span>
+<span id="cb5-3"><a href="#cb5-3"></a><span class="kw">struct</span> Kleisli&lt;R, A, E&gt; <span class="op">{</span></span>
+<span id="cb5-4"><a href="#cb5-4"></a>    k: <span class="dt">Box</span>&lt;dyn <span class="bu">Fn</span>(???) -&gt; EnvIO&lt;R, A, E&gt;&gt;</span>
+<span id="cb5-5"><a href="#cb5-5"></a><span class="op">}</span></span>
+<span id="cb5-6"><a href="#cb5-6"></a></span>
+<span id="cb5-7"><a href="#cb5-7"></a><span class="co">// Our set of instructions</span></span>
+<span id="cb5-8"><a href="#cb5-8"></a><span class="kw">enum</span> EnvIO&lt;R, A, E&gt; <span class="op">{</span></span>
+<span id="cb5-9"><a href="#cb5-9"></a>    Effect(<span class="dt">Box</span>&lt;dyn <span class="bu">Fn</span>() -&gt; <span class="dt">Box</span>&lt;A&gt;&gt;),</span>
+<span id="cb5-10"><a href="#cb5-10"></a>    FlatMap(<span class="dt">Box</span>&lt;EnvIO&lt;R, ???, E&gt;&gt;, Kleisli&lt;R, A, E&gt;)</span>
+<span id="cb5-11"><a href="#cb5-11"></a>    ...</span>
+<span id="cb5-12"><a href="#cb5-12"></a><span class="op">}</span></span></code></pre></div>
+<p>This is where the Rust limitations start to really kick in. You'll notice that we have a bit of a problem here. EnvIO only has 3 type parameters! It's a trifunctor, remember? How do we represent a FlatMap enum variant? Well, in ZIO, this is done by representing each instruction as a separate type. For instance, ZIO defines a FlatMap class which extends the ZIO trait. But we can't really do that in Rust! We would run into issues of object safety if we tried defining a generic <code>flat_map</code> method on an <code>EnvIO</code> trait object. Believe me, I've tried. Okay, fine, the <code>Future</code> trait has its own <code>and_then</code> method, but <code>Future</code> does not use trait objects and does not require effect rotation or an interpreter of any kind. It also isn't as concerned about stack safety as <code>EnvIO is</code>. <code>Future</code> is much simpler than <code>EnvIO</code>. In our example, we need something more powerful. Something more... dangerous.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode rust"><code class="sourceCode rust"><span id="cb6-1"><a href="#cb6-1"></a><span class="kw">struct</span> Kleisli&lt;R, A, E&gt; <span class="op">{</span></span>
+<span id="cb6-2"><a href="#cb6-2"></a>    k: <span class="dt">Box</span>&lt;dyn <span class="bu">Fn</span>(<span class="dt">Box</span>&lt;Opaque&gt;) -&gt; EnvIO&lt;Opaque, Opaque, Opaque&gt;&gt;,</span>
+<span id="cb6-3"><a href="#cb6-3"></a>    _pd: PhantomData&lt;(R, A, E)&gt;</span>
+<span id="cb6-4"><a href="#cb6-4"></a><span class="op">}</span></span>
+<span id="cb6-5"><a href="#cb6-5"></a></span>
+<span id="cb6-6"><a href="#cb6-6"></a><span class="kw">enum</span> Opaque <span class="op">{}</span></span>
+<span id="cb6-7"><a href="#cb6-7"></a></span>
+<span id="cb6-8"><a href="#cb6-8"></a><span class="co">// Our set of instructions</span></span>
+<span id="cb6-9"><a href="#cb6-9"></a><span class="kw">enum</span> EnvIO&lt;R, A, E&gt; <span class="op">{</span></span>
+<span id="cb6-10"><a href="#cb6-10"></a>    Effect(<span class="dt">Box</span>&lt;dyn <span class="bu">Fn</span>() -&gt; <span class="dt">Box</span>&lt;A&gt;&gt;),</span>
+<span id="cb6-11"><a href="#cb6-11"></a>    FlatMap(<span class="dt">Box</span>&lt;EnvIO&lt;R, Opaque, E&gt;&gt;, Kleisli&lt;R, A, E&gt;)</span>
+<span id="cb6-12"><a href="#cb6-12"></a>    ...</span>
+<span id="cb6-13"><a href="#cb6-13"></a><span class="op">}</span></span>
+<span id="cb6-14"><a href="#cb6-14"></a></span>
+<span id="cb6-15"><a href="#cb6-15"></a><span class="kw">impl</span>&lt;R, A, E&gt; EnvIO&lt;R, A, E&gt; <span class="op">{</span></span>
+<span id="cb6-16"><a href="#cb6-16"></a>    <span class="kw">unsafe</span> <span class="kw">fn</span> flat_map_unsafe&lt;B&gt;(<span class="kw">self</span>, k: <span class="dt">Box</span>&lt;dyn <span class="bu">Fn</span>(<span class="dt">Box</span>&lt;A&gt;) -&gt; EnvIO&lt;R, B, E&gt;&gt;) -&gt; EnvIO&lt;R, B, E&gt; <span class="op">{</span></span>
+<span id="cb6-17"><a href="#cb6-17"></a>        <span class="pp">EnvIO::</span>FlatMap(<span class="dt">Box</span>::new(<span class="pp">mem::</span>transmute(<span class="kw">self</span>)), Kleisli <span class="op">{</span> k: <span class="pp">mem::</span>transmute(k), _pd: PhantomData <span class="op">}</span>)</span>
+<span id="cb6-18"><a href="#cb6-18"></a>    <span class="op">}</span></span>
+<span id="cb6-19"><a href="#cb6-19"></a></span>
+<span id="cb6-20"><a href="#cb6-20"></a>    <span class="kw">fn</span> flat_map&lt;B, F: <span class="ot">'static</span>&gt;(<span class="kw">self</span>, k: F) -&gt; EnvIO&lt;R, B, E&gt; <span class="kw">where</span> F: <span class="bu">Fn</span>(A) -&gt; EnvIO&lt;R, B, E&gt; <span class="op">{</span></span>
+<span id="cb6-21"><a href="#cb6-21"></a>        <span class="kw">unsafe</span> <span class="op">{</span> <span class="kw">self</span>.flat_map_unsafe(<span class="dt">Box</span>::new(<span class="kw">move</span> |a: <span class="dt">Box</span>&lt;A&gt;| k(*a))) <span class="op">}</span></span>
+<span id="cb6-22"><a href="#cb6-22"></a>    <span class="op">}</span></span>
+<span id="cb6-23"><a href="#cb6-23"></a><span class="op">}</span></span></code></pre></div>
+<p>In this case, we now have a new <code>Opaque</code> data type, which is just an empty enum. It's an empty type, like <code>!</code> (or Scala's <code>Nothing</code>), only it's actually usable on stable. The reality is, this opaque type could have literally been any type. Here, we use the dreaded <code>unsafe</code> to turn Kleisli arrows into functions from an opaque type to an <code>EnvIO</code> containing opaque types. This is important because our interpreter is going to need to use some variable to store the current instruction to process, and that variable needs to have some kind of type that holds arbitrary instructions. We could have tried <code>Box&lt;dyn Any&gt;</code>, but we really need to be able to downcast to an <code>EnvIO&lt;Box&lt;dyn Any&gt;, Box&lt;dyn Any&gt;, Box&lt;dyn Any&gt;&gt;</code> so that we can pattern match on our instructions. A <code>Box&lt;dyn Any&gt;</code> only allows you to downcast to the original type you had upcasted from, so this won't work and the interpreter would just panic. Since <code>unsafe</code> is being used, we need to make sure that the user-facing API is safe and that no undefined behaviour leaks out of the library, so PhantomData is used here to ensure that our Kleisli arrows have the correct type. PhantomData is zero-sized, so this is just a nice way of enforcing type safety when type parameters are unused in the actual data contained by a struct. When we call <code>flat_map_unsafe</code>, we also have to do something a bit clever to ensure that the function that the caller supplies us with actually has the correct type. We want the input argument to be boxed for sizedness reasons. The astute reader will note that functions are also profunctors. Thus, we can contramap over the input argument in order to get the desired type. Here, I don't explicitly define contramap anywhere because I am inlining the implementation directly.</p>
+<p>As an aside, here is how contramap works. Take a function like this one: <code>A =&gt; B</code>. Consider the typical signature of the <code>map</code> function, <code>(F[B], B =&gt; C) =&gt; F[C]</code>. We can treat our function <code>A =&gt; B</code> as a functor by fixing one of the two types. First, I will fix <code>A</code> and allow <code>B</code> to vary. I will also replace <code>F[_]</code> with <code>A =&gt; _</code> to give <code>map</code> the following signature: <code>((A =&gt; B), B =&gt; C) =&gt; (A =&gt; C)</code>. By playing a bit of type tetris, we can implement it like so (in pseudo-code for brevity):</p>
+<pre><code>fn map&lt;A, B, C&gt;(fb: Fn(A) -&gt; B, f: Fn(B) -&gt; C) -&gt; Fn(A) -&gt; C {
+    |a: A| f(fb(a))
+}</code></pre>
+<p>That's cool. We can take a function <code>A =&gt; B</code> and turn it into a function <code>A =&gt; C</code> where C is any arbitrary type. But what if we want to vary the input argument instead? Things become more difficult. Here's an attempt at what that might look like:</p>
+<pre><code>fn map&lt;A, B, C&gt;(fb: Fn(A) -&gt; B, f: Fn(A) -&gt; C) -&gt; Fn(C) -&gt; B {
+    ??? // I can't implement this!
+}</code></pre>
+<p>We immediately run into problems. No amount of type tetris will permit this function to produce a function of the correct type. This shows us that functions are asymmetric. We will have to be a bit more clever than this. In category theoretic terms, functions are contrafunctorial in their input argument. This means that we need to reverse the direction of our arrows. In code, reversing the arrows looks something like this:</p>
+<pre><code>fn contramap&lt;A, B, C&gt;(fb: Fn(A) -&gt; B, f: Fn(C) -&gt; A) -&gt; Fn(C) -&gt; B {
+    |c: C| fb(f(c))
+}</code></pre>
+<p>Notice how <code>f</code> went from <code>A =&gt; C</code> to <code>C =&gt; A</code>. That's it! That's all we need to do. Now we can change our function type to accept a <code>Box&lt;A&gt;</code> instead of <code>A</code>.</p>
+<p>With all that out of the way, let's write a cute little program that prints a few lines of text!</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode rust"><code class="sourceCode rust"><span id="cb10-1"><a href="#cb10-1"></a><span class="kw">fn</span> main() <span class="op">{</span></span>
+<span id="cb10-2"><a href="#cb10-2"></a>    <span class="kw">let</span> io = <span class="pp">effect!</span>(<span class="pp">println!</span>(<span class="st">&quot;hello world&quot;</span>));</span>
+<span id="cb10-3"><a href="#cb10-3"></a>    <span class="kw">let</span> io2 = io.flat_map(|_| <span class="pp">effect!</span>(<span class="pp">println!</span>(<span class="st">&quot;meow&quot;</span>)));</span>
+<span id="cb10-4"><a href="#cb10-4"></a><span class="op">}</span></span></code></pre></div>
+<p>Alright, we did it! Err, wait, this actually doesn't do anything still. Remember, this is all just a program description. We haven't actually interpreted these instructions anywhere yet. So now, we're going to take off our functional programmer hats and go back to the imperative Rust we all know and love. Ready?</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode rust"><code class="sourceCode rust"><span id="cb11-1"><a href="#cb11-1"></a><span class="kw">fn</span> run&lt;R, A, E&gt;(envio: EnvIO&lt;R, A, E&gt;) -&gt; A <span class="op">{</span></span>
+<span id="cb11-2"><a href="#cb11-2"></a>    <span class="kw">unsafe</span> <span class="op">{</span></span>
+<span id="cb11-3"><a href="#cb11-3"></a>        <span class="kw">let</span> envio_opaque: EnvIO&lt;Opaque, Opaque, Opaque&gt; = <span class="pp">mem::</span>transmute(envio);</span>
+<span id="cb11-4"><a href="#cb11-4"></a>        interpret(envio_opaque)</span>
+<span id="cb11-5"><a href="#cb11-5"></a>    <span class="op">}</span></span>
+<span id="cb11-6"><a href="#cb11-6"></a><span class="op">}</span></span>
+<span id="cb11-7"><a href="#cb11-7"></a></span>
+<span id="cb11-8"><a href="#cb11-8"></a><span class="kw">unsafe</span> <span class="kw">fn</span> interpret&lt;A&gt;(<span class="kw">mut</span> envio: EnvIO&lt;Opaque, Opaque, Opaque&gt;) -&gt; A <span class="op">{</span></span>
+<span id="cb11-9"><a href="#cb11-9"></a>    <span class="kw">let</span> <span class="kw">mut</span> stack: <span class="dt">Vec</span>&lt;Kleisli&lt;Opaque, Opaque, Opaque&gt;&gt; = <span class="pp">vec!</span><span class="op">[]</span>;</span>
+<span id="cb11-10"><a href="#cb11-10"></a>    <span class="kw">loop</span> <span class="op">{</span></span>
+<span id="cb11-11"><a href="#cb11-11"></a>        <span class="kw">match</span> envio <span class="op">{</span></span>
+<span id="cb11-12"><a href="#cb11-12"></a>            <span class="pp">EnvIO::</span>FlatMap(inner, kleisli) =&gt; <span class="op">{</span></span>
+<span id="cb11-13"><a href="#cb11-13"></a>                <span class="kw">match</span> *inner <span class="op">{</span></span>
+<span id="cb11-14"><a href="#cb11-14"></a>                    <span class="pp">EnvIO::</span>Effect(eff) =&gt; <span class="op">{</span></span>
+<span id="cb11-15"><a href="#cb11-15"></a>                        envio = (kleisli.k)(eff())</span>
+<span id="cb11-16"><a href="#cb11-16"></a>                    <span class="op">}</span></span>
+<span id="cb11-17"><a href="#cb11-17"></a>                    _ =&gt; <span class="op">{</span></span>
+<span id="cb11-18"><a href="#cb11-18"></a>                        stack.push(kleisli);</span>
+<span id="cb11-19"><a href="#cb11-19"></a>                        envio = *inner;</span>
+<span id="cb11-20"><a href="#cb11-20"></a>                    <span class="op">}</span></span>
+<span id="cb11-21"><a href="#cb11-21"></a>                <span class="op">}</span></span>
+<span id="cb11-22"><a href="#cb11-22"></a>            <span class="op">}</span>,</span>
+<span id="cb11-23"><a href="#cb11-23"></a>            <span class="pp">EnvIO::</span>Effect(eff) =&gt; <span class="op">{</span></span>
+<span id="cb11-24"><a href="#cb11-24"></a>                <span class="kw">if</span> <span class="kw">let</span> <span class="cn">Some</span>(kleisli) = stack.pop() <span class="op">{</span></span>
+<span id="cb11-25"><a href="#cb11-25"></a>                    envio = (kleisli.k)(eff());</span>
+<span id="cb11-26"><a href="#cb11-26"></a>                <span class="op">}</span> <span class="kw">else</span> <span class="op">{</span></span>
+<span id="cb11-27"><a href="#cb11-27"></a>                    <span class="kw">return</span> *<span class="pp">mem::transmute::</span>&lt;<span class="dt">Box</span>&lt;Opaque&gt;, <span class="dt">Box</span>&lt;A&gt;&gt;(eff());</span>
+<span id="cb11-28"><a href="#cb11-28"></a>                <span class="op">}</span></span>
+<span id="cb11-29"><a href="#cb11-29"></a>            <span class="op">}</span></span>
+<span id="cb11-30"><a href="#cb11-30"></a>            _ =&gt; <span class="pp">panic!</span>(<span class="st">&quot;unknown instruction&quot;</span>)</span>
+<span id="cb11-31"><a href="#cb11-31"></a>        <span class="op">}</span></span>
+<span id="cb11-32"><a href="#cb11-32"></a>    <span class="op">}</span></span>
+<span id="cb11-33"><a href="#cb11-33"></a><span class="op">}</span></span></code></pre></div>
+<p>Let's break this down, starting with <code>run</code>. As you may have guessed, <code>run</code> is our "safe" API that the programmer will be calling into. It will be marked <code>pub</code> in a future update, since it really should be. All that <code>run</code> does is convert the program we pass it into an opaque version of the same program. That opaque program will be passed into <code>interpret</code>, which will do all of the heavy lifting. Note that because we are working with our <code>Opaque</code> type again, we have to use <code>mem::transmute</code> some more. This actually makes <code>interpret</code> incredibly unsafe. Note the signature:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode rust"><code class="sourceCode rust"><span id="cb12-1"><a href="#cb12-1"></a><span class="kw">unsafe</span> <span class="kw">fn</span> interpret&lt;A&gt;(<span class="kw">mut</span> envio: EnvIO&lt;Opaque, Opaque, Opaque&gt;) -&gt; A</span></code></pre></div>
+<p>We can literally pass it any kind of <code>EnvIO</code> we want and pull a result of whatever type we want. An easy way to exhibit UB in this case is to transmute an <code>EnvIO&lt;u32, u32, u32&gt;</code> into <code>EnvIO&lt;Opaque, Opaque, Opaque&gt;</code> and call interpret with type argument <code>EnvIO&lt;u32, bool, u32&gt;&gt;</code>. This will give you garbage as an output. To enforce proper usage, <code>run</code> takes 3 type arguments; the three type arguments of the <code>EnvIO</code> program we are passing to the interpreter. <code>run</code> then passes the type arguments as needed to interpret. Right now, since the only instructions we have are <code>FlatMap</code> and <code>Effect</code>, we won't be using <code>R</code> or <code>E</code>.</p>
+<p>Now let's dive into the core logic of the interpreter itself. It is important to note that the correctness of this interpreter is critical. If it is not implemented correctly, we can very easily allow UB to leak into the outer world of safe Rust. First, we start of by defining an empty stack of <code>Kleisli</code>s. These will be very important later. Next, we start up an infinite loop. No, it's not actually infinite, we can break out when we're done processing instructions. First we take our current <code>EnvIO</code> instruction and pattern match to see what kind of instruction it really is. If it's an <code>EnvIO::Effect</code> then we can simply run the effect, which will produce a <code>Box&lt;Opaque&gt;</code>. From here, we can transmute to a <code>Box&lt;A&gt;</code> and then dereference it to get the final output value. Note that the transmute only works while the values are boxed. While <code>transmute</code> is very unsafe, it still has a safety check that ensures that the types you are converting between have the same size. Thus, since the two boxed types have the same size, we are allowed to transmute in this case. Things get a little more complicated if our first instruction is a <code>EnvIO::FlatMap</code>, however. First, we extract the inner <code>EnvIO</code> and run a mini-interpreter here to determine what the next instruction is. This is what ZIO does under the hood as well, for performance reasons. If we see an <code>EnvIO::Effect</code> then we know that we can evaluate it and feed the result it to our <code>Kleisli</code> that we got from the outer <code>EnvIO::FlatMap</code> instruction to get back the next instruction. However, if we see another <code>EnvIO::FlatMap</code>, we want to push the current instruction's <code>Kleisli</code> on to the stack and set our current instruction to the next one. Note that in the outer pattern match, if we get an <code>EnvIO::Effect</code>, we check the stack to see if it's empty or not. If not, we just repeatedly apply the <code>Kleisli</code>s in the stack until the we run into a different instruction variant or we empty out the stack. To make this a bit easier to understand, here is an example:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode rust"><code class="sourceCode rust"><span id="cb13-1"><a href="#cb13-1"></a><span class="kw">fn</span> main() <span class="op">{</span></span>
+<span id="cb13-2"><a href="#cb13-2"></a>	<span class="kw">let</span> io: EnvIO&lt;(), (), ()&gt; = <span class="pp">effect!</span>(<span class="pp">println!</span>(<span class="st">&quot;hello world&quot;</span>));</span>
+<span id="cb13-3"><a href="#cb13-3"></a>	<span class="kw">let</span> io2 = io.flat_map(|_| <span class="pp">effect!</span>(<span class="pp">println!</span>(<span class="st">&quot;meow&quot;</span>)));</span>
+<span id="cb13-4"><a href="#cb13-4"></a>	<span class="kw">let</span> io3 = io2.flat_map(|_| <span class="pp">effect!</span>(<span class="pp">println!</span>(<span class="st">&quot;woof&quot;</span>)));</span>
+<span id="cb13-5"><a href="#cb13-5"></a>	</span>
+<span id="cb13-6"><a href="#cb13-6"></a>	<span class="pp">run::</span>&lt;(), (), ()&gt;(io3);</span>
+<span id="cb13-7"><a href="#cb13-7"></a><span class="op">}</span></span></code></pre></div>
+<p>This produces the following tree of instructions:</p>
+<pre><code>FlatMap(io2, |_| { Effect(|| println!(&quot;woof&quot;)) })</code></pre>
+<p>which expands to:</p>
+<pre><code>FlatMap(FlatMap(io, |_| { Effect(|| println!(&quot;meow&quot;)) }), |_| { Effect(|| println!(&quot;woof&quot;)) })</code></pre>
+<p>which expands to:</p>
+<pre><code>FlatMap(FlatMap(Effect(|| println!(&quot;hello world&quot;)), |_| { Effect(|| println!(&quot;meow&quot;)) }), |_| { Effect(|| println!(&quot;woof&quot;)) })</code></pre>
+<figure>
+<img src="../Assets/EnvIO/InstrTree.PNG" alt /><figcaption>Instruction Tree Screenshot</figcaption>
+</figure>
+<p>Let's interpret this program. First, we see a <code>FlatMap</code> and then we see that the next instruction is also a <code>FlatMap</code>, so we push the current instruction's <code>Kleisli</code> on to the stack. That is to say, we would push <code>|_: ()| EnvIO::Effect(|| println!("woof"))</code> on to our stack of <code>Kleisli</code>s. We also set the current instruction to the inner instruction, which, as we saw, was a <code>FlatMap</code>. On the next loop iteration, we will see a <code>FlatMap</code> instruction and the next instruction is an <code>Effect</code>. Thus, we will run the effect and apply the current instruction's <code>Kleisli</code> to it. The effect we run will be <code>println!("hello world")</code> and the <code>Kleisli</code> we apply is going to take the result of printing "hello world", which is just <code>()</code>, and return <code>Effect(println!("meow"))</code>. We then set the current instruction to this effect (<code>Effect(println!("meow"))</code>). On our next iteration of the loop, we will see that the current instruction is an <code>Effect</code> and check the stack of <code>Kleisli</code>s. We will see that there is something on the stack and pop it off. Now, we will run our effect <code>|| println!("meow")</code> which prints "meow" and returns <code>()</code>. This value is then passed to our <code>Kleisli</code>, <code>|_: ()| EnvIO::Effect(|| println!("woof"))</code>, which returns <code>Effect(println!("woof"))</code>. We then set the current instruction to this effect (<code>Effect(println!("woof"))</code>). One more iteration to go! On this iteration, we will see that the current instruction is <code>Effect</code>, so we check the stack again, but this time, there are no more <code>Kleisli</code>s. At this point, we run our last effect, <code>|| println!("woof")</code>, which prints "woof" and returns <code>()</code>, breaking out of the loop.</p>
+<h2 id="so-whats-next">So what's next?</h2>
+<p>At the current time of this writing, I have yet to add the rest of the effects. For the next release, I intend on getting all of the major synchronous effects working. I would also like to try and make sure that there are no soundness issues with this crate. Aside from that, I will be adding documentation and tests. I am still on the fence about adding a monad comprehension macro to go along with this. I know <code>mdo</code> exists and it's fairly usable as is, but with so many effects rolled into one monad, I think Env-IO could use its own monad comprehension macro that does not use duck-typing, if possible. I'll definitely need to investigate that a bit more though and it isn't a high priority at the moment.</p>
+<h2 id="final-thoughts">Final thoughts</h2>
+<p>The usage of <code>unsafe</code> in this crate is definitely something I wish I could cut down on or remove completely. I've tried countless times over the last several months to come up with a clean solution that did not use <code>unsafe</code> whatsoever, but they all had critical flaws that made them non-viable. Scala gets away with this thanks to subtyping and variance. It can just mark ZIO's type parameters as <code>-R, +E, +A</code>, which allows a <code>ZIO[Int, Int, Int]</code> to be a subtype of <code>ZIO[Nothing, Any, Any]</code>, which allows for easy downcasting. I wonder if there is a way we could emulate this in Rust once <code>!</code> is stabilized. It would be a simple 3 tiered hierarchy of types with <code>Box&lt;dyn Any&gt;</code> on top, <code>!</code> at the bottom, and all other types in between. A safe API around this could be pretty useful for applications like this one, where I had to resort to <code>mem::transmute</code> to achieve the same sort of thing. I also ended up looking at the <code>zerocopy</code> crate used in Google Fuchsia. Unfortunately, that crate does not work with types containing type parameters. Maybe some day there will be a way to safely express these kinds of programs in Rust with the right crates, but for now, it seems as though <code>unsafe</code> is here to stay.</p>
+<p>EDIT1: Here is the code that I came up with that allows me to avoid using the <code>unsafe</code> keyword.</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode rust"><code class="sourceCode rust"><span id="cb17-1"><a href="#cb17-1"></a><span class="kw">use</span> <span class="pp">std::any::</span>Any;</span>
+<span id="cb17-2"><a href="#cb17-2"></a><span class="kw">use</span> <span class="pp">std::marker::</span>PhantomData;</span>
+<span id="cb17-3"><a href="#cb17-3"></a></span>
+<span id="cb17-4"><a href="#cb17-4"></a><span class="kw">type</span> BAny = <span class="dt">Box</span>&lt;dyn Any&gt;;</span>
+<span id="cb17-5"><a href="#cb17-5"></a></span>
+<span id="cb17-6"><a href="#cb17-6"></a><span class="kw">type</span> Kleisli = <span class="dt">Box</span>&lt;<span class="bu">Fn</span>(BAny) -&gt; <span class="dt">Box</span>&lt;Instr&gt;&gt;;</span>
+<span id="cb17-7"><a href="#cb17-7"></a></span>
+<span id="cb17-8"><a href="#cb17-8"></a><span class="kw">enum</span> Instr <span class="op">{</span></span>
+<span id="cb17-9"><a href="#cb17-9"></a>    Succeed(BAny),</span>
+<span id="cb17-10"><a href="#cb17-10"></a>    Effect(<span class="dt">Box</span>&lt;<span class="bu">Fn</span>() -&gt; BAny&gt;),</span>
+<span id="cb17-11"><a href="#cb17-11"></a>    FlatMap(<span class="dt">Box</span>&lt;Instr&gt;, Kleisli)</span>
+<span id="cb17-12"><a href="#cb17-12"></a><span class="op">}</span></span>
+<span id="cb17-13"><a href="#cb17-13"></a></span>
+<span id="cb17-14"><a href="#cb17-14"></a><span class="kw">struct</span> EnvIO&lt;R, A, E&gt; <span class="op">{</span></span>
+<span id="cb17-15"><a href="#cb17-15"></a>    instr: Instr,</span>
+<span id="cb17-16"><a href="#cb17-16"></a>    _pd: PhantomData&lt;(R, A, E)&gt;</span>
+<span id="cb17-17"><a href="#cb17-17"></a><span class="op">}</span></span>
+<span id="cb17-18"><a href="#cb17-18"></a></span>
+<span id="cb17-19"><a href="#cb17-19"></a><span class="kw">impl</span>&lt;R: <span class="ot">'static</span>, A: <span class="ot">'static</span>, E: <span class="ot">'static</span>&gt; EnvIO&lt;R, A, E&gt; <span class="op">{</span></span>
+<span id="cb17-20"><a href="#cb17-20"></a>    <span class="kw">fn</span> flat_map&lt;B, K: <span class="bu">Fn</span>(A) -&gt; EnvIO&lt;R, B, E&gt; + <span class="ot">'static</span>&gt;(<span class="kw">self</span>, k: K) -&gt; EnvIO&lt;R, B, E&gt; <span class="op">{</span></span>
+<span id="cb17-21"><a href="#cb17-21"></a>        <span class="kw">let</span> boxed_input_k = <span class="kw">move</span> |a: <span class="dt">Box</span>&lt;A&gt;| <span class="op">{</span></span>
+<span id="cb17-22"><a href="#cb17-22"></a>            k(*a)</span>
+<span id="cb17-23"><a href="#cb17-23"></a>        <span class="op">}</span>;</span>
+<span id="cb17-24"><a href="#cb17-24"></a></span>
+<span id="cb17-25"><a href="#cb17-25"></a>        <span class="kw">let</span> any_input_k = <span class="kw">move</span> |bany: BAny| <span class="op">{</span></span>
+<span id="cb17-26"><a href="#cb17-26"></a>            <span class="kw">let</span> a: <span class="dt">Box</span>&lt;A&gt; = bany</span>
+<span id="cb17-27"><a href="#cb17-27"></a>                .<span class="pp">downcast::</span>&lt;A&gt;()</span>
+<span id="cb17-28"><a href="#cb17-28"></a>                .unwrap_or_else(|_| <span class="pp">panic!</span>(<span class="st">&quot;flat_map: Could not downcast Any to A&quot;</span>));</span>
+<span id="cb17-29"><a href="#cb17-29"></a>            boxed_input_k(a)</span>
+<span id="cb17-30"><a href="#cb17-30"></a>        <span class="op">}</span>;</span>
+<span id="cb17-31"><a href="#cb17-31"></a></span>
+<span id="cb17-32"><a href="#cb17-32"></a>        <span class="kw">let</span> instr_output_k = <span class="kw">move</span> |bany: BAny| <span class="op">{</span></span>
+<span id="cb17-33"><a href="#cb17-33"></a>            <span class="dt">Box</span>::new(any_input_k(bany).instr)</span>
+<span id="cb17-34"><a href="#cb17-34"></a>        <span class="op">}</span>;</span>
+<span id="cb17-35"><a href="#cb17-35"></a></span>
+<span id="cb17-36"><a href="#cb17-36"></a>        EnvIO <span class="op">{</span></span>
+<span id="cb17-37"><a href="#cb17-37"></a>            instr: <span class="pp">Instr::</span>FlatMap(<span class="dt">Box</span>::new(<span class="kw">self</span>.instr), <span class="dt">Box</span>::new(instr_output_k)),</span>
+<span id="cb17-38"><a href="#cb17-38"></a>            _pd: PhantomData</span>
+<span id="cb17-39"><a href="#cb17-39"></a>        <span class="op">}</span></span>
+<span id="cb17-40"><a href="#cb17-40"></a>    <span class="op">}</span></span>
+<span id="cb17-41"><a href="#cb17-41"></a><span class="op">}</span></span>
+<span id="cb17-42"><a href="#cb17-42"></a></span>
+<span id="cb17-43"><a href="#cb17-43"></a><span class="pp">macro_rules!</span> effect <span class="op">{</span></span>
+<span id="cb17-44"><a href="#cb17-44"></a>    ($e:expr) =&gt; <span class="op">{</span></span>
+<span id="cb17-45"><a href="#cb17-45"></a>        <span class="op">{</span></span>
+<span id="cb17-46"><a href="#cb17-46"></a>            $<span class="pp">crate::</span>effect(<span class="kw">move</span> || <span class="dt">Box</span>::new($e))</span>
+<span id="cb17-47"><a href="#cb17-47"></a>        <span class="op">}</span></span>
+<span id="cb17-48"><a href="#cb17-48"></a>    <span class="op">}</span></span>
+<span id="cb17-49"><a href="#cb17-49"></a><span class="op">}</span></span>
+<span id="cb17-50"><a href="#cb17-50"></a></span>
+<span id="cb17-51"><a href="#cb17-51"></a><span class="kw">fn</span> effect&lt;R, A: <span class="ot">'static</span>, E, F: <span class="ot">'static</span>&gt;(eff: F) -&gt; EnvIO&lt;R, A, E&gt; <span class="kw">where</span> F: <span class="bu">Fn</span>() -&gt; <span class="dt">Box</span>&lt;A&gt; <span class="op">{</span></span>
+<span id="cb17-52"><a href="#cb17-52"></a>    <span class="kw">let</span> effect_any = <span class="kw">move</span> || <span class="op">{</span></span>
+<span id="cb17-53"><a href="#cb17-53"></a>        <span class="kw">let</span> bany: BAny = eff();</span>
+<span id="cb17-54"><a href="#cb17-54"></a>        bany</span>
+<span id="cb17-55"><a href="#cb17-55"></a>    <span class="op">}</span>;</span>
+<span id="cb17-56"><a href="#cb17-56"></a></span>
+<span id="cb17-57"><a href="#cb17-57"></a>    EnvIO <span class="op">{</span></span>
+<span id="cb17-58"><a href="#cb17-58"></a>        instr: <span class="pp">Instr::</span>Effect(<span class="dt">Box</span>::new(effect_any)),</span>
+<span id="cb17-59"><a href="#cb17-59"></a>        _pd: PhantomData</span>
+<span id="cb17-60"><a href="#cb17-60"></a>    <span class="op">}</span></span>
+<span id="cb17-61"><a href="#cb17-61"></a><span class="op">}</span></span>
+<span id="cb17-62"><a href="#cb17-62"></a></span>
+<span id="cb17-63"><a href="#cb17-63"></a><span class="kw">fn</span> success&lt;R, A: <span class="ot">'static</span>, E&gt;(a: A) -&gt; EnvIO&lt;R, A, E&gt; <span class="op">{</span></span>
+<span id="cb17-64"><a href="#cb17-64"></a>    EnvIO <span class="op">{</span></span>
+<span id="cb17-65"><a href="#cb17-65"></a>        instr: <span class="pp">Instr::</span>Succeed(<span class="dt">Box</span>::new(a)),</span>
+<span id="cb17-66"><a href="#cb17-66"></a>        _pd: PhantomData</span>
+<span id="cb17-67"><a href="#cb17-67"></a>    <span class="op">}</span></span>
+<span id="cb17-68"><a href="#cb17-68"></a><span class="op">}</span></span>
+<span id="cb17-69"><a href="#cb17-69"></a></span>
+<span id="cb17-70"><a href="#cb17-70"></a><span class="kw">fn</span> run&lt;R, A: <span class="ot">'static</span>, E&gt;(envio: EnvIO&lt;R, A, E&gt;) -&gt; A <span class="op">{</span></span>
+<span id="cb17-71"><a href="#cb17-71"></a>    <span class="pp">interpret::</span>&lt;A&gt;(envio.instr)</span>
+<span id="cb17-72"><a href="#cb17-72"></a><span class="op">}</span></span>
+<span id="cb17-73"><a href="#cb17-73"></a></span>
+<span id="cb17-74"><a href="#cb17-74"></a><span class="kw">fn</span> interpret&lt;A: <span class="ot">'static</span>&gt;(<span class="kw">mut</span> instr: Instr) -&gt; A <span class="op">{</span></span>
+<span id="cb17-75"><a href="#cb17-75"></a>    <span class="kw">let</span> <span class="kw">mut</span> stack: <span class="dt">Vec</span>&lt;Kleisli&gt; = <span class="pp">vec!</span><span class="op">[]</span>;</span>
+<span id="cb17-76"><a href="#cb17-76"></a>    <span class="kw">loop</span> <span class="op">{</span></span>
+<span id="cb17-77"><a href="#cb17-77"></a>        <span class="kw">match</span> instr <span class="op">{</span></span>
+<span id="cb17-78"><a href="#cb17-78"></a>            <span class="pp">Instr::</span>FlatMap(inner, kleisli) =&gt; <span class="op">{</span></span>
+<span id="cb17-79"><a href="#cb17-79"></a>                <span class="kw">match</span> *inner <span class="op">{</span></span>
+<span id="cb17-80"><a href="#cb17-80"></a>                    <span class="pp">Instr::</span>Effect(eff) =&gt; <span class="op">{</span></span>
+<span id="cb17-81"><a href="#cb17-81"></a>                        instr = *kleisli(eff())</span>
+<span id="cb17-82"><a href="#cb17-82"></a>                    <span class="op">}</span></span>
+<span id="cb17-83"><a href="#cb17-83"></a>                    <span class="pp">Instr::</span>Succeed(a) =&gt; <span class="op">{</span></span>
+<span id="cb17-84"><a href="#cb17-84"></a>                        instr = *kleisli(a);</span>
+<span id="cb17-85"><a href="#cb17-85"></a>                    <span class="op">}</span></span>
+<span id="cb17-86"><a href="#cb17-86"></a>                    _ =&gt; <span class="op">{</span></span>
+<span id="cb17-87"><a href="#cb17-87"></a>                        stack.push(kleisli);</span>
+<span id="cb17-88"><a href="#cb17-88"></a>                        instr = *inner;</span>
+<span id="cb17-89"><a href="#cb17-89"></a>                    <span class="op">}</span></span>
+<span id="cb17-90"><a href="#cb17-90"></a>                <span class="op">}</span></span>
+<span id="cb17-91"><a href="#cb17-91"></a>            <span class="op">}</span></span>
+<span id="cb17-92"><a href="#cb17-92"></a>            <span class="pp">Instr::</span>Effect(eff) =&gt; <span class="op">{</span></span>
+<span id="cb17-93"><a href="#cb17-93"></a>                <span class="kw">if</span> <span class="kw">let</span> <span class="cn">Some</span>(kleisli) = stack.pop() <span class="op">{</span></span>
+<span id="cb17-94"><a href="#cb17-94"></a>                    instr = *kleisli(eff());</span>
+<span id="cb17-95"><a href="#cb17-95"></a>                <span class="op">}</span> <span class="kw">else</span> <span class="op">{</span></span>
+<span id="cb17-96"><a href="#cb17-96"></a>                    <span class="kw">return</span> *eff()</span>
+<span id="cb17-97"><a href="#cb17-97"></a>                        .<span class="pp">downcast::</span>&lt;A&gt;()</span>
+<span id="cb17-98"><a href="#cb17-98"></a>                        .unwrap_or_else(|_| <span class="pp">panic!</span>(<span class="st">&quot;interpret (effect): Could not downcast Any to A&quot;</span>));</span>
+<span id="cb17-99"><a href="#cb17-99"></a>                <span class="op">}</span></span>
+<span id="cb17-100"><a href="#cb17-100"></a>            <span class="op">}</span></span>
+<span id="cb17-101"><a href="#cb17-101"></a>            <span class="pp">Instr::</span>Succeed(a) =&gt; <span class="op">{</span></span>
+<span id="cb17-102"><a href="#cb17-102"></a>                <span class="kw">if</span> <span class="kw">let</span> <span class="cn">Some</span>(kleisli) = stack.pop() <span class="op">{</span></span>
+<span id="cb17-103"><a href="#cb17-103"></a>                    instr = *kleisli(a);</span>
+<span id="cb17-104"><a href="#cb17-104"></a>                <span class="op">}</span> <span class="kw">else</span> <span class="op">{</span></span>
+<span id="cb17-105"><a href="#cb17-105"></a>                    <span class="kw">return</span> *a.<span class="pp">downcast::</span>&lt;A&gt;()</span>
+<span id="cb17-106"><a href="#cb17-106"></a>                        .unwrap_or_else(|_| <span class="pp">panic!</span>(<span class="st">&quot;interpret (succeed): Could not downcast Any to A&quot;</span>));</span>
+<span id="cb17-107"><a href="#cb17-107"></a>                <span class="op">}</span></span>
+<span id="cb17-108"><a href="#cb17-108"></a>            <span class="op">}</span></span>
+<span id="cb17-109"><a href="#cb17-109"></a>        <span class="op">}</span></span>
+<span id="cb17-110"><a href="#cb17-110"></a>    <span class="op">}</span></span>
+<span id="cb17-111"><a href="#cb17-111"></a><span class="op">}</span></span></code></pre></div>
+<p>This isn't the final API (mostly due to issues related to variance and subtyping; perhaps I will blog about my approach to that problem too), however it does accomplish everything that the previous implementation in this post was able to. For clarity, the <code>EnvIO</code> enum from the earlier version of this post was changed to the <code>Instr</code> enum here. The major change that allowed me to remove <code>unsafe</code> was removing all type parameters from the instruction enum. Instead, the type parameters are tied to a newtype wrapper, which I have named <code>EnvIO</code> for now. The type parameters are only used in <code>PhantomData</code>, which serves the same purpose as before: keeping things typesafe. As you can see from the code, I ended up replacing most type parameter usages in the instruction enum with <code>BAny</code>, which is just a shorter alias for <code>Box&lt;dyn Any&gt;</code>. This doesn't change much of how the interpreter works. We were already using an opaque type before, so switching to <code>BAny</code> just means we have to downcast instead of using <code>mem::transmute</code>. This does complicate all of the functions that take closures as arguments, since they now have to perform more map/contramaps to massage the closure type into something that uses <code>BAny</code>. However, I think that this trade-off is worthwhile, since I would much rather avoid the extra responsibility of having to verify that my code does not exhibit UB. One note about the downcasts: I use <code>unwrap_or_else</code> because <code>unwrap_or</code> is eagerly evaluated and will trigger <code>panic!</code> too early. There's probably a cleaner way to <code>panic!</code> than this (probably could use <code>expect</code>?), but I'll tidy that up later when I come up with better error messages for easier debugging.</p>
+    </section>
+</article>
+
+        </main>
+
+        <footer>
+            Site proudly generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </footer>
+    </body>
+</html>

@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>My Hakyll Blog - Issues with Env-IO</title>
+        <link rel="stylesheet" href="../css/default.css" />
+    </head>
+    <body>
+        <header>
+            <div class="logo">
+                <a href="../">My Hakyll Blog</a>
+            </div>
+            <nav>
+                <a href="../">Home</a>
+                <a href="../about.html">About</a>
+                <a href="../contact.html">Contact</a>
+                <a href="../archive.html">Archive</a>
+            </nav>
+        </header>
+
+        <main role="main">
+            <h1>Issues with Env-IO</h1>
+            <article>
+    <section class="header">
+        Posted on August 31, 2019
+        
+    </section>
+    <section>
+        <p>Last month, I mentioned that I would write about some of the issues I ran into with Env-IO, so I decided that I would write about those issues this month. Since I only really spent the beginning of the month working on Env-IO, next month's post will probably be about something different (and more exciting).</p>
+<h1 id="variance">Variance</h1>
+<p>One of the major issues I struggled with when trying to port ZIO to Rust was subtyping. ZIO works quite well with Scala's subtyping rules, using them to enforce correct usage of the library. Unfortunately, we don't have the ability to leverage subtyping in Rust, so I ended up enforcing these constraints in other ways. I am still using some of the type aliases defined originally in ZIO, but there are some key differences:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode rust"><code class="sourceCode rust"><span id="cb1-1"><a href="#cb1-1"></a><span class="kw">pub</span> <span class="kw">enum</span> NoReq <span class="op">{}</span></span>
+<span id="cb1-2"><a href="#cb1-2"></a><span class="kw">pub</span> <span class="kw">enum</span> Nothing <span class="op">{}</span></span>
+<span id="cb1-3"><a href="#cb1-3"></a></span>
+<span id="cb1-4"><a href="#cb1-4"></a><span class="kw">pub</span> <span class="kw">type</span> UIO&lt;A&gt; = EnvIO&lt;NoReq, A, Nothing&gt;;</span>
+<span id="cb1-5"><a href="#cb1-5"></a></span>
+<span id="cb1-6"><a href="#cb1-6"></a><span class="kw">impl</span>&lt;A: <span class="ot">'static</span>&gt; UIO&lt;A&gt; <span class="op">{</span></span>
+<span id="cb1-7"><a href="#cb1-7"></a>    <span class="kw">pub</span> <span class="kw">fn</span> into_envio&lt;R: <span class="ot">'static</span>, E: <span class="ot">'static</span>&gt;(<span class="kw">self</span>) -&gt; EnvIO&lt;R, A, E&gt; <span class="op">{</span></span>
+<span id="cb1-8"><a href="#cb1-8"></a>        EnvIO <span class="op">{</span></span>
+<span id="cb1-9"><a href="#cb1-9"></a>            instr: <span class="kw">self</span>.instr,</span>
+<span id="cb1-10"><a href="#cb1-10"></a>            _pd: PhantomData,</span>
+<span id="cb1-11"><a href="#cb1-11"></a>        <span class="op">}</span></span>
+<span id="cb1-12"><a href="#cb1-12"></a>    <span class="op">}</span></span>
+<span id="cb1-13"><a href="#cb1-13"></a><span class="op">}</span></span></code></pre></div>
+<p>In this case, Nothing is an empty type like the currently unstable <code>!</code>. I will explain NoReq later. In this case, I needed to define some way of converting an <code>EnvIO</code> with no possibility of failure into an <code>EnvIO</code> that can potentially fail. Without this transformation, certain combinators, such as <code>and_then</code>, cannot be used. Let's take a look at how that's defined:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode rust"><code class="sourceCode rust"><span id="cb2-1"><a href="#cb2-1"></a><span class="kw">pub</span> <span class="kw">fn</span> and_then&lt;B, K: <span class="bu">Fn</span>(A) -&gt; EnvIO&lt;NoReq, B, E&gt; + <span class="ot">'static</span>&gt;(<span class="kw">self</span>, k: K) -&gt; REnvIO&lt;R, B, E&gt; <span class="op">{</span></span>
+<span id="cb2-2"><a href="#cb2-2"></a>    REnvIO <span class="op">{</span></span>
+<span id="cb2-3"><a href="#cb2-3"></a>        envio: <span class="kw">self</span>.envio.and_then(k),</span>
+<span id="cb2-4"><a href="#cb2-4"></a>    <span class="op">}</span></span>
+<span id="cb2-5"><a href="#cb2-5"></a><span class="op">}</span></span></code></pre></div>
+<p>The important part here to notice is the signature of the function we are passing in. It must return another <code>EnvIO</code> such that the error type is the same as the source type. This is a problem when we get a <code>UIO</code> because it means that the function passed to <code>and_then</code> also needs to return a <code>UIO</code>. This is not at all how ZIO works, which is why <code>into_envio</code> was added in Env-IO. Now, if you have a <code>UIO</code>, you can easily convert it to an <code>EnvIO</code> of the correct error type for <code>and_then</code>. Of course, this is a bit less ergonomic and non-trivially changes the API.</p>
+<p>While the aforementioned solution works decently for introducing the error type, it won't be sufficient for introducing the environment type. For the environment type, we need to use a newtype wrapper to ensure that our API is sound. Let's take a look at the code:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode rust"><code class="sourceCode rust"><span id="cb3-1"><a href="#cb3-1"></a><span class="kw">pub</span> <span class="kw">struct</span> REnvIO&lt;R, A, E&gt; <span class="op">{</span></span>
+<span id="cb3-2"><a href="#cb3-2"></a>    envio: EnvIO&lt;R, A, E&gt;,</span>
+<span id="cb3-3"><a href="#cb3-3"></a><span class="op">}</span></span>
+<span id="cb3-4"><a href="#cb3-4"></a></span>
+<span id="cb3-5"><a href="#cb3-5"></a><span class="kw">impl</span>&lt;R: <span class="ot">'static</span>, A: <span class="ot">'static</span>, E: <span class="ot">'static</span>&gt; REnvIO&lt;R, A, E&gt; <span class="op">{</span></span>
+<span id="cb3-6"><a href="#cb3-6"></a>    <span class="kw">pub</span> <span class="kw">fn</span> and_then&lt;B, K: <span class="bu">Fn</span>(A) -&gt; EnvIO&lt;NoReq, B, E&gt; + <span class="ot">'static</span>&gt;(<span class="kw">self</span>, k: K) -&gt; REnvIO&lt;R, B, E&gt; <span class="op">{</span></span>
+<span id="cb3-7"><a href="#cb3-7"></a>        REnvIO <span class="op">{</span></span>
+<span id="cb3-8"><a href="#cb3-8"></a>            envio: <span class="kw">self</span>.envio.and_then(k),</span>
+<span id="cb3-9"><a href="#cb3-9"></a>        <span class="op">}</span></span>
+<span id="cb3-10"><a href="#cb3-10"></a>    <span class="op">}</span></span>
+<span id="cb3-11"><a href="#cb3-11"></a></span>
+<span id="cb3-12"><a href="#cb3-12"></a>    <span class="kw">pub</span> <span class="kw">fn</span> map&lt;B: <span class="ot">'static</span>, F: <span class="bu">Fn</span>(A) -&gt; B + <span class="ot">'static</span>&gt;(<span class="kw">self</span>, f: F) -&gt; REnvIO&lt;R, B, E&gt; <span class="op">{</span></span>
+<span id="cb3-13"><a href="#cb3-13"></a>        REnvIO <span class="op">{</span></span>
+<span id="cb3-14"><a href="#cb3-14"></a>            envio: <span class="kw">self</span>.envio.map(f),</span>
+<span id="cb3-15"><a href="#cb3-15"></a>        <span class="op">}</span></span>
+<span id="cb3-16"><a href="#cb3-16"></a>    <span class="op">}</span></span>
+<span id="cb3-17"><a href="#cb3-17"></a></span>
+<span id="cb3-18"><a href="#cb3-18"></a>    <span class="kw">pub</span> <span class="kw">fn</span> fold&lt;S: <span class="ot">'static</span>, F: <span class="ot">'static</span>, B: <span class="ot">'static</span>&gt;(</span>
+<span id="cb3-19"><a href="#cb3-19"></a>        <span class="kw">self</span>,</span>
+<span id="cb3-20"><a href="#cb3-20"></a>        success: S,</span>
+<span id="cb3-21"><a href="#cb3-21"></a>        failure: F,</span>
+<span id="cb3-22"><a href="#cb3-22"></a>    ) -&gt; REnvIO&lt;R, B, Nothing&gt;</span>
+<span id="cb3-23"><a href="#cb3-23"></a>    <span class="kw">where</span></span>
+<span id="cb3-24"><a href="#cb3-24"></a>        S: <span class="bu">Fn</span>(A) -&gt; B,</span>
+<span id="cb3-25"><a href="#cb3-25"></a>        F: <span class="bu">Fn</span>(E) -&gt; B,</span>
+<span id="cb3-26"><a href="#cb3-26"></a>    <span class="op">{</span></span>
+<span id="cb3-27"><a href="#cb3-27"></a>        REnvIO <span class="op">{</span></span>
+<span id="cb3-28"><a href="#cb3-28"></a>            envio: <span class="kw">self</span>.envio.fold(success, failure),</span>
+<span id="cb3-29"><a href="#cb3-29"></a>        <span class="op">}</span></span>
+<span id="cb3-30"><a href="#cb3-30"></a>    <span class="op">}</span></span>
+<span id="cb3-31"><a href="#cb3-31"></a></span>
+<span id="cb3-32"><a href="#cb3-32"></a>    <span class="kw">pub</span> <span class="kw">fn</span> provide(<span class="kw">self</span>, r: R) -&gt; IO&lt;A, E&gt; <span class="op">{</span></span>
+<span id="cb3-33"><a href="#cb3-33"></a>        provide(r)(<span class="kw">self</span>.envio)</span>
+<span id="cb3-34"><a href="#cb3-34"></a>    <span class="op">}</span></span>
+<span id="cb3-35"><a href="#cb3-35"></a><span class="op">}</span></span>
+<span id="cb3-36"><a href="#cb3-36"></a></span>
+<span id="cb3-37"><a href="#cb3-37"></a><span class="kw">fn</span> provide&lt;R: <span class="ot">'static</span>, A: <span class="ot">'static</span>, E: <span class="ot">'static</span>&gt;(r: R) -&gt; <span class="kw">impl</span> <span class="bu">FnOnce</span>(EnvIO&lt;R, A, E&gt;) -&gt; IO&lt;A, E&gt; <span class="op">{</span></span>
+<span id="cb3-38"><a href="#cb3-38"></a>    <span class="kw">move</span> |envio: EnvIO&lt;R, A, E&gt;| EnvIO <span class="op">{</span></span>
+<span id="cb3-39"><a href="#cb3-39"></a>        instr: <span class="pp">Instr::</span>Provide(<span class="dt">Box</span>::new(r), box_instr(envio)),</span>
+<span id="cb3-40"><a href="#cb3-40"></a>        _pd: PhantomData,</span>
+<span id="cb3-41"><a href="#cb3-41"></a>    <span class="op">}</span></span>
+<span id="cb3-42"><a href="#cb3-42"></a><span class="op">}</span></span>
+<span id="cb3-43"><a href="#cb3-43"></a></span>
+<span id="cb3-44"><a href="#cb3-44"></a><span class="kw">pub</span> <span class="kw">fn</span> environment&lt;R: <span class="ot">'static</span>&gt;() -&gt; REnvIO&lt;R, R, Nothing&gt; <span class="op">{</span></span>
+<span id="cb3-45"><a href="#cb3-45"></a>    REnvIO <span class="op">{</span></span>
+<span id="cb3-46"><a href="#cb3-46"></a>        envio: EnvIO <span class="op">{</span></span>
+<span id="cb3-47"><a href="#cb3-47"></a>            instr: <span class="pp">Instr::</span>Read(<span class="pp">KleisliOrFold::</span>Kleisli(<span class="dt">Box</span>::new(<span class="kw">move</span> |bany: BAny| <span class="op">{</span></span>
+<span id="cb3-48"><a href="#cb3-48"></a>                box_instr(succeed(<span class="pp">downcast::</span>&lt;R&gt;(bany)))</span>
+<span id="cb3-49"><a href="#cb3-49"></a>            <span class="op">}</span>))),</span>
+<span id="cb3-50"><a href="#cb3-50"></a>            _pd: PhantomData,</span>
+<span id="cb3-51"><a href="#cb3-51"></a>        <span class="op">}</span>,</span>
+<span id="cb3-52"><a href="#cb3-52"></a>    <span class="op">}</span></span>
+<span id="cb3-53"><a href="#cb3-53"></a><span class="op">}</span></span></code></pre></div>
+<p>As you can see, this creates a lot of boilerplate. We need to use composition to call the inner <code>EnvIO</code>'s methods. The environment is where <code>NoReq</code> comes in. Normally, in ZIO, <code>Any</code> is used instead. Again, because we don't have subtyping in Rust, <code>NoReq</code> is used instead as a marker to indicate that an environment is not required for a particular instruction. Now, we can enforce that our interpreter takes an <code>EnvIO</code> with no required environment. This is important because we don't want to run an <code>EnvIO</code> that is waiting for the user to provide it with an environment, otherwise we will have to <code>panic!</code>. the reason why we need a newtype instead of a type alias is because the user can pick the type that <code>environment</code> uses when constructing an <code>EnvIO</code>. If the user were to pick <code>NoReq</code> and then pass the resulting <code>EnvIO</code> to the interpreter, the interpreter would try to read an environment from the environment stack and <code>panic!</code>. Thus, we need to ensure that the <code>EnvIO</code> transitions to a new type state and transitions back when calling <code>provide</code>.</p>
+<p>This newtype wrapper also complicates the API for the <code>IO</code> alias, since we now have to add a new <code>and_then_req</code> method in the case where we want to pass a function that returns a <code>REnvIO</code> instead:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode rust"><code class="sourceCode rust"><span id="cb4-1"><a href="#cb4-1"></a><span class="kw">impl</span>&lt;A: <span class="ot">'static</span>, E: <span class="ot">'static</span>&gt; IO&lt;A, E&gt; <span class="op">{</span></span>
+<span id="cb4-2"><a href="#cb4-2"></a>    <span class="kw">pub</span> <span class="kw">fn</span> with_env&lt;R: <span class="ot">'static</span>&gt;(<span class="kw">self</span>) -&gt; EnvIO&lt;R, A, E&gt; <span class="op">{</span></span>
+<span id="cb4-3"><a href="#cb4-3"></a>        EnvIO <span class="op">{</span></span>
+<span id="cb4-4"><a href="#cb4-4"></a>            instr: <span class="kw">self</span>.instr,</span>
+<span id="cb4-5"><a href="#cb4-5"></a>            _pd: PhantomData,</span>
+<span id="cb4-6"><a href="#cb4-6"></a>        <span class="op">}</span></span>
+<span id="cb4-7"><a href="#cb4-7"></a>    <span class="op">}</span></span>
+<span id="cb4-8"><a href="#cb4-8"></a></span>
+<span id="cb4-9"><a href="#cb4-9"></a>    <span class="kw">pub</span> <span class="kw">fn</span> and_then_req&lt;R: <span class="ot">'static</span>, B, K: <span class="bu">Fn</span>(A) -&gt; REnvIO&lt;R, B, E&gt; + <span class="ot">'static</span>&gt;(</span>
+<span id="cb4-10"><a href="#cb4-10"></a>        <span class="kw">self</span>,</span>
+<span id="cb4-11"><a href="#cb4-11"></a>        k: K,</span>
+<span id="cb4-12"><a href="#cb4-12"></a>    ) -&gt; REnvIO&lt;R, B, E&gt; <span class="op">{</span></span>
+<span id="cb4-13"><a href="#cb4-13"></a>        REnvIO <span class="op">{</span></span>
+<span id="cb4-14"><a href="#cb4-14"></a>            envio: EnvIO <span class="op">{</span></span>
+<span id="cb4-15"><a href="#cb4-15"></a>                instr: <span class="pp">Instr::</span>AndThen(</span>
+<span id="cb4-16"><a href="#cb4-16"></a>                    box_instr(<span class="kw">self</span>),</span>
+<span id="cb4-17"><a href="#cb4-17"></a>                    <span class="pp">KleisliOrFold::</span>Kleisli(<span class="dt">Box</span>::new(<span class="kw">move</span> |bany: BAny| <span class="op">{</span></span>
+<span id="cb4-18"><a href="#cb4-18"></a>                        box_instr(k(<span class="pp">downcast::</span>&lt;A&gt;(bany)).envio)</span>
+<span id="cb4-19"><a href="#cb4-19"></a>                    <span class="op">}</span>)),</span>
+<span id="cb4-20"><a href="#cb4-20"></a>                ),</span>
+<span id="cb4-21"><a href="#cb4-21"></a>                _pd: PhantomData,</span>
+<span id="cb4-22"><a href="#cb4-22"></a>            <span class="op">}</span>,</span>
+<span id="cb4-23"><a href="#cb4-23"></a>        <span class="op">}</span></span>
+<span id="cb4-24"><a href="#cb4-24"></a>    <span class="op">}</span></span>
+<span id="cb4-25"><a href="#cb4-25"></a><span class="op">}</span></span></code></pre></div>
+<p>As with <code>UIO</code>'s <code>into_envio</code>, we add a <code>with_env</code> method to easily convert to an <code>EnvIO</code>, at the cost of slightly worse ergonomics.</p>
+<h1 id="ownership">Ownership</h1>
+<p>Note that there are no <code>access</code> or <code>access_m</code> methods here, unlike ZIO. This is because we are taking ownership of the environment. While it might be possible to borrow the environment, I found it too difficult to come up with a way to do this. As a result, the API is a bit simpler, but also a fair bit less ergonomic. At the very least, I do not have to worry about bracketing to drop allocated resources, since Rust uses RAII.</p>
+<h1 id="closing-thoughts">Closing thoughts</h1>
+<p>At this point it's pretty clear how much better this approach synergizes with Scala compared to Rust. While it is definitely possible to work around the lack of subtyping in Rust, the API for Env-IO ends up being less ergonomic and requires a bit of boilerplate on my part as the library author. However, I feel like it is still usable even in its current state. Of course, Scala also has the cake pattern, which helps make environments more ergonomic to use. That's an issue I have not found a workaround for yet in Rust. Perhaps once more compiler features are added/stabilized in Rust, it will be possible to make Env-IO more suitable for Rust, but for now, I think this is about as far as I'm willing to push this project.</p>
+    </section>
+</article>
+
+        </main>
+
+        <footer>
+            Site proudly generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </footer>
+    </body>
+</html>

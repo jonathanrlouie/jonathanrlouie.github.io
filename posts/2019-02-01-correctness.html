@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>My Hakyll Blog - Correctness of Randomizer Logic</title>
+        <link rel="stylesheet" href="../css/default.css" />
+    </head>
+    <body>
+        <header>
+            <div class="logo">
+                <a href="../">My Hakyll Blog</a>
+            </div>
+            <nav>
+                <a href="../">Home</a>
+                <a href="../about.html">About</a>
+                <a href="../contact.html">Contact</a>
+                <a href="../archive.html">Archive</a>
+            </nav>
+        </header>
+
+        <main role="main">
+            <h1>Correctness of Randomizer Logic</h1>
+            <article>
+    <section class="header">
+        Posted on February  1, 2019
+        
+    </section>
+    <section>
+        <p>Recently, an interesting bug showed up in the A Link to the Past randomizer. Here's the <a href="https://github.com/sporchia/alttp_vt_randomizer/issues/616">GitHub issue</a> for it. Interestingly, this bug is not a case where the game cannot be completed, but rather a case where the game cannot ever have progression items in certain locations where it is completely valid for them to show up. The <a href="https://www.reddit.com/r/alttpr/comments/adygbm/psa_progression_items_will_never_be_on_ether_or/">Reddit thread</a> mentioned in this bug report indicates that this bug was only found after performing an analysis of 20000 different seeds. While this isn't game breaking, it does have a major effect on routing, since it harshly devalues checking the Ether and Bombos tablets. Players with this knowledge could potentially save quite a bit of time on certain seeds, giving them a significant advantage in races over players that do not have this knowledge. This left me wondering what it means for a randomizer to be correct and how developers might be able to ensure the correctness of their randomizers.</p>
+<h1 id="correct-randomizers">"Correct" randomizers</h1>
+<p>Correctness in the realm of randomizers will always be game dependent, but more generally, the main goal of a "correct" randomizer will usually be to try and ensure that the game can be beaten. For a game like ALTTP, an item randomizer will try to populate the item locations in such a way that the game can still be beaten, despite being in random locations. Likewise, an entrance randomizer will try to shuffle compatible loading zones in such a way that the game can still be beaten. However, as we have seen with the aforementioned bug report, being only "beatable" may not be sufficient for determining whether or not a randomizer algorithm is considered "correct". In the case of this bug, it is considered incorrect for the randomizer to be unable to place a progression item in a perfectly reachable location. Of course, these are not the only restrictions we may impose on a "correct" randomizer. We could also add restrictions such as "must have progression chain of at least 5 items" or "must distribute items as evenly as possible" if we really wanted to. It is because of this subjective nature of randomizer "correctness" that I feel that it's important for randomizer designers to precisely define the properties that their randomizer should satisfy in order to be considered "correct".</p>
+<h1 id="enforcing-randomizer-correctness">Enforcing randomizer correctness</h1>
+<p>So now we have defined what it means for a randomizer to be "correct", but how do we enforce this? Unit testing can certainly help us feel more confident in the correctness of our randomizers, but testing is only probabilistic, especially in the presence of randomization. It isn't infeasible to generate a large number of seeds and try to check the validity of all of the progression item locations, but this isn't guaranteed to test every case. This approach also does not account for items absolutely not being able to show up in certain locations, nor does it help us determine whether or not we have a relatively uniform item distribution. Okay, you could add tests to generate a bunch of seeds and check appearance rates of items in certain locations and set thresholds on what is or is not acceptable, but again, this isn't a sure-fire solution. It may also be quite time consuming to generate a large number of seeds, depending on how fast seed generation is. It is worth noting that the player who reported the bug had stated that it took quite a bit of time to generate the 20000 seeds being analyzed. Parallelization could probably help with this, but surely there's a more precise solution than testing, right? While this may be overkill, formal verification methods could be used to prove certain properties of randomizers. I'm not saying that formal verification should replace unit testing altogether, but it could certainly give us much more confidence in the correctness of our randomizers in addition to unit tests. This also is an avenue that I haven't really seen being explored with existing randomizers, so I think there may be some potential here.</p>
+<h1 id="does-randomizer-correctness-really-matter">Does randomizer correctness really matter?</h1>
+<p>Being able to ensure the correctness of a randomizer could help reduce a lot of false bug reports. I have seen a large number of threads created by players who believe that their seed cannot be completed, but almost all of these reports have been false. Being able to prove that the algorithm is correct might put more players' minds at ease (though I'm personally of the opinion that built-in trackers are a better way to alleviate this problem). There's also a number of larger (&gt;100 entrants) randomizer tournaments, sometimes even with cash prizes. When money is on the line, I believe it is important to ensure that strange bugs don't occur and cause the game to be unbeatable or give certain players a significant advantage over their opponents. Perhaps randomizers aren't "big" enough to warrant trying to really nail down correctness now, but if the randomizer scene grows, it could very well be a different story in the future.</p>
+    </section>
+</article>
+
+        </main>
+
+        <footer>
+            Site proudly generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </footer>
+    </body>
+</html>
