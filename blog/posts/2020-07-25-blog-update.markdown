@@ -1,0 +1,22 @@
+---
+layout: post
+title:  Blog Update
+date:   2020-07-26 10:00:00 -0700
+categories: Meta
+---
+
+This is kind of weird for me, because I tend not to do these sorts of meta posts about the blog itself. However, due to recent changes in my life, I have decided to write a post about what\'s going on with the blog and where it\'s headed.
+
+# Future of the Blog
+
+It\'s the end of July and I still haven\'t posted anything for this month. What gives? Well, this may come as a surprise, but I\'m now officially the organizer of the [Rust Meetups in Vancouver](https://www.meetup.com/Vancouver-Rust/)! As a result, I have to spend more time preparing material for the meetups, which means less time for this blog. I have mixed feelings on this, because I\'m excited to be talking more about Rust and learning from other people, but I also really wanted to write about a lot more different topics for this blog. However, that doesn\'t mean that I won\'t be updating this blog at all. I\'m leaning towards writing a new post bimonthly or if that is still too much, maybe only a few times a year.
+
+# Future Topics and Focus
+
+This blog was started with randomizers in mind, but I\'ve also been using this space to express my thoughts on other, more technical topics. While I still enjoy randomizers, I think that I\'m probably going to move away from writing about them. This doesn\'t mean I won\'t ever write anything about them again, but I feel that most of my readers are more interested in the technical posts. I also tend to enjoy writing more technical posts, so I think this blog will primarily be a technical blog from now on.
+
+One thing I haven\'t really talked about is how I decide which topics I blog about. It may be somewhat obvious, but I tend to just write about whatever comes to mind. Usually, I post about something new I\'m learning or something related to some personal project I\'m working on at the time. While I think that this format works pretty well for me, I actually have bigger plans for what I want to post in the near future. As you probably know by now, I\'ve been doing a lot of reading about dependent types and theorem proving recently. So far, I\'ve mentioned other materials one can read to learn more about these topics, but I\'ve received feedback that telling people \"go read this book\" is not particularly helpful, since they don\'t want to read a 500+ page book. I agree that this isn\'t really the best way to help people understand what makes dependent types interesting, so I\'ve decided to start up a new video series on programming with proofs, aimed at the average OOP developer. This will be uploaded to [my YouTube channel](https://www.youtube.com/channel/UCjQgvE-k654RiRCLXa7JQNw), so future blog posts will likely just be discussions about the videos, maybe about what goes into these videos behind the scenes. Again, this doesn\'t preclude me from writing about other topics, so I may post occasionally about Rust and the meetup or some other things I\'ve found that are interesting.
+
+# Closing thoughts
+
+Given the current situation, I predict that there won\'t be too much activity on this blog for the next year or so. However, I\'m going to try to post more often on my [YouTube channel](https://www.youtube.com/channel/UCjQgvE-k654RiRCLXa7JQNw), so if you\'re interested in what I\'m doing, look for me there instead. And of course, you can always swing by the Vancouver Rust meetups as well. I welcome anyone interested in Rust, even if they are just beginners. I\'m also looking for presenters, so if you happen to be interested in presenting something Rust related at the meetup, send me a message on [meetup.com](https://www.meetup.com/Vancouver-Rust/) or fire off an e-mail to me at jonathanrlouie@gmail.com.
