@@ -1,5 +1,9 @@
-resolver: lts-14.1
+resolver: lts-22.43
 packages:
   - .
 extra-deps:
-  - hakyll-4.13.0.1
+  - hakyll-4.16.2.2
+
+nix:
+  enable: true
+  packages: [zlib.dev, zlib.out]
