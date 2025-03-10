@@ -73,3 +73,7 @@ body {
     vertical-align: middle;
     display: table-cell;
 }
+
+.spacer {
+    height: 100px;
+}

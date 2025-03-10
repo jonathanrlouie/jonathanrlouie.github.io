@@ -44,13 +44,13 @@ id : {a : Type} -&gt; (value : a) -&gt; a</code></pre>
 <p>Note that Idris' termination checker isn't a solution to the halting problem, which states that termination is an undecidable property. By undecidable, I mean that given an arbitrary program, Idris can't answer "Yes" or "No" to the question "Does this program terminate?". Instead, Idris' termination checker makes a conservative guess about whether or not an arbitrary program terminates. This means that for some programs that do terminate, the termination checker might say "I don't know if this program terminates or not".</p>
 <p>Without further ado, I'm going to show an equivalent definition of the Idris function in predicate logic, which we will subsequently break down:</p>
 <figure>
-<img src="../Assets/PiTypes/Formula1.PNG" alt /><figcaption>Formula1</figcaption>
+<img src="/Assets/PiTypes/Formula1.png" alt /><figcaption>Formula1</figcaption>
 </figure>
 <p><code>U0</code> is the first type universe, which contains all types.</p>
 <p>In Rust and Idris, we read <code>a : A</code> as "<code>a</code> is of type <code>A</code>". In our logical interpretation, we can read this as "<code>a</code> is a proof of the proposition <code>A</code>" by Curry-Howard. In fact, we could say that any implementation of our function <code>id</code> that compiles is a proof of this proposition.</p>
 <p>We can take this a step further. We can also rewrite this as follows:</p>
 <figure>
-<img src="../Assets/PiTypes/Formula2.PNG" alt /><figcaption>Formula2</figcaption>
+<img src="/Assets/PiTypes/Formula2.png" alt /><figcaption>Formula2</figcaption>
 </figure>
 <p>Which we can read as "for all propositions <code>A</code> in universe <code>U0</code>, <code>A</code> implies <code>A</code>". This has several implications (no pun intended). Already, by using this arrow notation, we are a lot closer to Idris' function signature syntax, which helps us to see the correspondence. Secondly, it shows that implication is a special case of universal quantification under certain circumstances. I will discuss this second point in more detail later.</p>
 <h1 id="dependent-function-types-pi-types">Dependent Function Types (pi types)</h1>
@@ -64,12 +64,12 @@ mkVect (S n) value = value :: mkVect n
 mkVect : (n : Nat) -&gt; a -&gt; Vect n a</code></pre>
 <p>We can mostly ignore the function's implementation. It simply produces a vector of length <code>n</code> where all the elements are some value of type <code>a</code>. What is important here is the type signature. We now have a type signature where the return type depends on the argument to the function. How does this look from a more logical perspective?</p>
 <figure>
-<img src="../Assets/PiTypes/Formula3.PNG" alt /><figcaption>Formula3</figcaption>
+<img src="/Assets/PiTypes/Formula3.png" alt /><figcaption>Formula3</figcaption>
 </figure>
 <p>Here, <code>N</code> represents the natural numbers and <code>Vect</code> is a predicate that takes the value variable <code>n</code> and the type variable <code>A</code>. I'm glossing over a few details related to how <code>Vect</code> is defined, but I think we can safely ignore them for the sake of this discussion. What is important to note here is that we reason with both type variables and value variables universally.</p>
 <p>Note that we don't need <code>v</code> at all. Vect is only parameterized by <code>n</code> and <code>A</code>, so we can rewrite this as follows:</p>
 <figure>
-<img src="../Assets/PiTypes/Formula4.PNG" alt /><figcaption>Formula4</figcaption>
+<img src="/Assets/PiTypes/Formula4.png" alt /><figcaption>Formula4</figcaption>
 </figure>
 <p>That might seem confusing, but what this is really showing is that you can treat "implies" as a special case of the universal quantifier if the proposition on the right-hand side does NOT depend on the quantified variable.</p>
 <p>Okay, so that's all cool, but how does this work in programming? This is the part that I struggled with the most when comparing dependent types to Rust and its <code>const</code> generics. The first question anyone asks me when I talk about dependent types is "How do you determine what type a value has if it relies on a runtime value?". Usually, if a program is poorly typed, the compiler will reject it and not allow you to run it. This is confusing in the context of dependently typed languages because many values are determined at runtime, such as user input, but bad programs are rejected at compile-time. It sort of creates a chicken and egg problem, right? Well, it turns out that it doesn't. By the same reasoning we use for generic type arguments, we can write functions over generic value arguments (you know, the regular ol' parameters you've been using in literally every other language!). This is where our reasoning with universal quantification comes in handy. <code>mkVect</code> takes any arbitrary value <code>n</code> of type <code>Nat</code>, so it doesn't matter what the value of <code>n</code> is at runtime.</p>

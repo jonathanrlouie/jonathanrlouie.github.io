@@ -11,7 +11,7 @@
         <p>I've finally found some more time to work on this project, so I decided that it's time for another progress update post. This time, I'm going to be focusing on the primary randomization algorithm used to shuffle entrances around. However, I'd like to also briefly go over the structure of the entire project so that it's easier to visualize what's going on.</p>
 <h1 id="project-structure">Project Structure</h1>
 <figure>
-<img src="../Assets/KatAMRandomizer/Part2/ProjectStructure.PNG" alt /><figcaption>Project structure</figcaption>
+<img src="/Assets/KatAMRandomizer/Part2/ProjectStructure.png" alt /><figcaption>Project structure</figcaption>
 </figure>
 <p>I'm mostly covering this in case it wasn't entirely clear what the project would look like from the first post. The plan is to have a JSON file containing all of the door information. The randomizer engine that I'm writing will consume this file, transform its contents into a structure that the randomizer algorithm can process, perform all of the necessary entrance swaps, and then output a mapping of the original entrances to their new destinations. From here, a randomizer application can use the randomizer engine as a library to generate entrance mappings for whatever they want.</p>
 <h1 id="language">Language</h1>
@@ -25,11 +25,11 @@
 <h1 id="further-optimizations">Further optimizations</h1>
 <p>One idea I had is to mark certain subgraphs as being connectors. What I mean by this is that a graph like the following...</p>
 <figure>
-<img src="../Assets/KatAMRandomizer/Part2/Graph.PNG" alt /><figcaption>Graph</figcaption>
+<img src="/Assets/KatAMRandomizer/Part2/Graph.png" alt /><figcaption>Graph</figcaption>
 </figure>
 <p>... can be expanded into the following graph by inserting an arbitrary subgraph of the right shape:</p>
 <figure>
-<img src="../Assets/KatAMRandomizer/Part2/GraphInserted.PNG" alt /><figcaption>Graph inserted</figcaption>
+<img src="/Assets/KatAMRandomizer/Part2/GraphInserted.png" alt /><figcaption>Graph inserted</figcaption>
 </figure>
 <p>As you can see, all subgraphs that contain a single entrance and exit of the same type (either one-way or two-way) can be arbitrarily inserted anywhere there is an edge of the corresponding type. This allows us to run the algorithm on only the portion of the graph that does not contain these "filler" subgraphs and also allows us to randomly insert these subgraphs later. Of course, doing this means that the JSON transformation needs to also build the graph without these subgraphs in the initial algorithm input. I haven't implemented this yet, but I definitely plan to do this soon, since it would help with making the game more random and would also speed up the randomization process significantly.</p>
 <h1 id="the-code">The code</h1>
