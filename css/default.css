@@ -11,7 +11,7 @@ body {
 
 .container > div.leftsidebar {
 	grid-area: leftsidebar;
-	background-image: url("../images/BlogBackgroundLeft.svg");
+	background-image: url("../Assets/BlogBackgroundLeft.svg");
 	background-repeat: repeat-y; 
 }
 
@@ -19,7 +19,7 @@ body {
 	grid-area: rightsidebar;
 	display: block;
         background-position: right center;
-	background-image: url("../images/BlogBackgroundRight.svg");
+	background-image: url("../Assets/BlogBackgroundRight.svg");
 	background-repeat: repeat-y; 
 }
 
