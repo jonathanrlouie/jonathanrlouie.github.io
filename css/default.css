@@ -2,6 +2,11 @@ body {
 	margin: 0;
 }
 
+img:not(.gear-image, .gear-image-opposite) {
+	max-width: 100%;
+        object-fit: cover;
+}
+
 .container {
 	display: grid;
 	grid-template-areas: "leftsidebar content rightsidebar";
@@ -77,3 +82,4 @@ body {
 .spacer {
     height: 100px;
 }
+
