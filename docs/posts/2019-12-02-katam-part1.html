@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width">
+
+        <title>Types and Toucans - 2019-12-02-katam-part1</title>
+
+        <!-- Stylesheets. -->
+        <link rel="stylesheet" type="text/css" href="../css/default.css?v=1">
+
+        <!-- Metadata. -->
+        <meta name="keywords" content="Jonathan Louie,blog,programming,coding,rust,idris,haskell,function,personal,homepage">
+        <meta name="description" content="Personal home page and blog of Jonathan Louie.">
+        <meta property="og:title" content="Types and Toucans - 2019-12-02-katam-part1" />
+        
+    </head>
+    <body>
+        <div id="gear-1" class="gear-container">
+            <div class="gear">
+                <img class="gear-image" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-2" class="gear-container">
+            <div class="gear">
+                <img class="gear-image-opposite" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-3" class="gear-container">
+            <div class="gear">
+                <img class="gear-image" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-4" class="gear-container">
+            <div class="gear">
+                <img class="gear-image-opposite" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-5" class="gear-container">
+            <div class="gear">
+                <img class="gear-image-opposite" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-6" class="gear-container">
+            <div class="gear">
+                <img class="gear-image" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+	<div class="container">
+            <div class="leftsidebar"></div>
+	    <div class="content"><head>
+    <meta charset="utf-8">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="../css/default.css" />
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="../">Home</a>
+        </nav>
+    </header>
+    <section id="lets-build-a-randomizer-part-1" role="main">
+<h1>Let’s build a randomizer! Part 1</h1>
+<article>
+<section class="header">
+Posted on December 2, 2019
+</section>
+<section>
+<p>It’s the end of the year and it’s been too hecking long since I’ve last touched any randomizers! So! The plan for the next several posts is to build a randomizer from scratch. More specifically, we’ll be building a randomizer for Kirby and the Amazing Mirror (KatAM), because that game is pretty rad and somewhat complicated, so it should be a fun challenge.</p>
+<h1 id="the-plan">The Plan</h1>
+<p>First of all, ROM-hacking is something I really want to avoid for legal reasons. Thus, we aren’t building an actual randomizer, but a randomizer engine. This solution should work not only for building a randomizer for KatAM, but for building randomizers for other similarly structured games. This includes games that are built from scratch, so we can avoid all of the nasty legal issues of ROM-hacking entirely. As a result of this decision, I won’t be going into any details about how to modify ROM-contents or anything, but if you are curious and want to build an actual randomizer, there are already plenty of examples on GitHub demonstrating how to do this for other games.</p>
+<p>With that out of the way, let’s talk about what we’re randomizing. KatAM is a pretty basic 2D platformer with an exploration aspect to it. Kirby’s goal in this game is to navigate a sprawling world to find and defeat 8 bosses holding mirror shards, which will allow him to enter the amazing mirror and defeat the final boss. Along the way, there are many treasure chests for Kirby to open, although most of them hold nothing of any real value. Specifically, there are 4 chests containing permanent, but optional, health upgrades and the rest of the chests contain either food items, maps, 1-ups, or spray paints, which only change Kirby’s appearance. As you can probably tell from this description, we aren’t building an item randomizer, since none of these items gate progress in any meaningful way. What we’re interested in is the layout of rooms that Kirby will be traversing. In this game, Kirby traverses the mirror world through one-way and two-way doors. This means we can write an entrance randomizer to scramble the connections, causing certain doors to lead to completely different rooms than they otherwise would. Thus, our goal will be to write an entrance randomizer such that Kirby can traverse all rooms in the game and also be able to beat the 8 bosses required to finish the game.</p>
+<h1 id="caveats">Caveats</h1>
+<p>While scrambling the world’s door connections seems like a fairly straightforward task, there are several challenges that prevent us from taking a naive approach to this.</p>
+<p>First off, certain doors are locked behind certain abilities. Kirby can inhale enemies to gain their abilities, but can only hold one at a time. Thus, if Kirby needs the hammer or stone ability to pound a stake to open a door leading to another door that requires the cutter or sword ability to access, he will need at least one cutter or sword enemy to inhale after having entered the first door. Alternatively, Kirby could proceed through both barriers if he has access to the smash ability. Thus, we need a way to track which abilities Kirby will have access to at certain positions in the scrambled world.</p>
+<p>Another issue with randomizing KatAM is that certain portions of some rooms only open up if Kirby has entered from a certain entrance. A good example is near the beginning of the game in Rainbow Route, where Kirby walks along a corridor at the top of a large room with 4 doors.</p>
+<figure>
+<img src="../Assets/KatAMRandomizer/Part1/FourDoors.png" />
+<figcaption>Four Doors Area</figcaption>
+</figure>
+<p>Kirby enters from the top-left, which is an exit from a one-way door, and can only reach the top-right door at this point in time. However, later in the game, Kirby can enter this room from the bottom-right door, which gives him access to a bomb block that opens access to all 3 of the remaining doors in the room. Thus, if we were to represent the game world as a graph, we might need to create two nodes, where one represents the lower half of the room and the other represents the upper half of the room. We could then add a one-way edge between these two nodes, which would link the two logical rooms that comprise this one larger actual room. Alternatively, we could also represent our room by using a map that indicates which doors are accessible from each entrance. Either way, this is another case that needs to be taken into consideration when building the randomizer logic.</p>
+<p>Finally, there are some very specific edge cases that we need to think about. One such edge case is a door in Radish Ruins that is marked as a regular two-way door, but is actually linked to 2 separate doors. See the below image for a better idea of what’s happening here:</p>
+<figure>
+<img src="../Assets/KatAMRandomizer/Part1/RadishRuinsDoors.png" />
+<figcaption>Radish Ruins Door</figcaption>
+</figure>
+<p>Here, door 1 is bidirectionally linked to door 3. Door 2 is actually a one-way door that brings Kirby to door 1 as well, even though it isn’t marked as a one-way door. We now have to make a decision about how to handle this scenario. Do we treat door 2 as another one-way door that can lead to any other location a one-way door could lead to? Or should we keep the implementation faithful to the original game and make it so that door 2 always points at the same location as door 3? My vote would be to keep doors 2 and 3 pointing to the same location, whatever that location may be. However, someone else might disagree and want to make it a one-way door. One solution might be to add an option in the randomizer settings to decide how this is handled. This is purely up to the designer, but in my randomizer engine, I will not be treating door 2 as a one-way door, meaning I need to implement a way to link the doors.</p>
+<p>There is another edge case concerning a large Heave-Ho/Heavy block in Moonlight Mansion and the CPU controlled Kirbies.</p>
+<figure>
+<img src="../Assets/KatAMRandomizer/Part1/HeavyBlock.png" />
+<figcaption>Moonlight Mansion Block</figcaption>
+</figure>
+<p>Normally, you need to have multiple Kirbies in the room to inhale the block at the same time and move it out of the way of a door. However, with some hitbox manipulation, you can actually use an earthquake ability (burning, for example) to move the block in the opposite direction and then squeeze Kirby past the block into the door. With the randomizer we have described so far, this isn’t really a problem, since you can always just call in the other Kirbies. However, if we wanted to make this randomizer viable for racing, it would be best to remove the ability to call in other Kirbies, since they will pick up random abilities and help players sequence break in certain rooms, which introduces an unfair element of randomness. Thus, this room becomes a bit of a problem if we remove the CPU controlled Kirbies. Technically, it is possible to enter the door in question without any other Kirbies, if Kirby has the right ability. However, squeezing past the block can be pretty difficult for people who have not practised the trick. One solution for this might be to add an option in the randomizer settings that removes this one particular block so that this room is not a problem anymore, although that removes the requirement of needing an earthquake ability. Another solution might be to move the door over slightly to make it easier to access. With the right implementation, this kind of requirement should be flexible and easy to customize.</p>
+<h1 id="the-design">The Design</h1>
+<p>As you probably have noticed, I labelled this post as “part 1”. I do not have a fully worked out design and implementation yet, so we won’t be looking at any code in this post. Luckily, the holidays are pretty soon and I should be able to come up with something during that time. For now, we will discuss part of the high-level design I have planned for this project.</p>
+<p>Ideally, we want our input data to be somewhat flexible. We need to consider all sorts of different world configurations, since the game we are randomizing may not be KatAM, but rather a KatAM-like game. As a result, we will also need to modify or turn off the logic determining which doors are reachable based on Kirby’s available abilities. My idea is to have all of the door information stored in records, either in CSV or JSON format. Since I likely will need to represent reachable doors as an array, I’m more inclined to go with JSON. Roughly speaking, here is an example of the format I’m imagining:</p>
+<div id="cb1" class="sourceCode">
+<div class="sourceCode" id="cb1"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ot">[</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;doorId&quot;</span> <span class="fu">:</span> <span class="dv">0</span><span class="fu">,</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;accessibleDoors&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>            <span class="fu">{</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>                <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="dv">2</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>                <span class="st">&quot;accessibleWithAbilities&quot;</span> <span class="er">:</span> <span class="ot">[</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>                    <span class="st">&quot;stone&quot;</span><span class="ot">,</span> <span class="st">&quot;hammer&quot;</span><span class="ot">,</span> <span class="st">&quot;smash&quot;</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>                <span class="ot">]</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>            <span class="fu">}</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>        <span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;isTwoWay&quot;</span> <span class="fu">:</span> <span class="kw">false</span><span class="fu">,</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;pointsTo&quot;</span> <span class="fu">:</span> <span class="dv">1</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="ot">]</span></span></code></pre></div>
+</div>
+<p>Here, we have an array of door objects. The <code>doorId</code> represents the ID of a door as an integer. Every door object will also have a list of doors that can be accessed if Kirby enters the room from that door. These entries simply contain the ID of the door that is reachable along with the required abilities to reach it. Every door also will have a flag indicating whether it is a one-way door or two-way door. Finally, each door contains an ID indicating which entrance the door normally leads to in the vanilla game. For the destinations of one-way doors, this can be <code>null</code>. I contemplated adding an extra field to indicate whether a door is specially linked to any other doors, like the Radish Ruins door, but I decided against it because we can always just search for doors that point to the same door and make sure that they still point to the same door as each other after randomization.</p>
+<p>Ideally, I’d like to be able to swap in different algorithms depending on the type of game and type of randomization required. Perhaps this could even be generalized to accommodate all other kinds of randomizers, making this a general-purpose randomizer engine. I kind of doubt it will ever reach that point, but we’ll see where this project ends up.</p>
+<h1 id="whats-next">What’s next?</h1>
+<p>I don’t feel like cramming all of my ideas into one post, so the algorithm will have to wait until part 2. I’m hoping to have some code to go alongside it as well. I may also tweak the JSON structure I’m using to better suit my needs. Stay tuned for part 2!</p>
+</section>
+</article>
+</section>
+    <div class="spacer"></div>
+</body>
+</div>
+            <div class="rightsidebar"></div>
+	</div>
+    </body>
+    <script>
+        window.onscroll = function () {
+	    scrollRotate();
+	    scrollRotateOpposite();
+        };
+
+        function scrollRotate() {
+            let images = document.getElementsByClassName("gear-image");
+	    for (const image of images) {
+                image.style.transform = "rotate(" + window.pageYOffset/2 + "deg)";
+	    }
+        }
+
+        function scrollRotateOpposite() {
+            let images = document.getElementsByClassName("gear-image-opposite");
+	    for (const image of images) {
+                image.style.transform = "rotate(" + (-window.pageYOffset/2) + "deg)";
+	    }
+        }
+    </script>
+</html>

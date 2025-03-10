@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width">
+
+        <title>Types and Toucans - 2018-08-29-random-ideas</title>
+
+        <!-- Stylesheets. -->
+        <link rel="stylesheet" type="text/css" href="../css/default.css?v=1">
+
+        <!-- Metadata. -->
+        <meta name="keywords" content="Jonathan Louie,blog,programming,coding,rust,idris,haskell,function,personal,homepage">
+        <meta name="description" content="Personal home page and blog of Jonathan Louie.">
+        <meta property="og:title" content="Types and Toucans - 2018-08-29-random-ideas" />
+        
+    </head>
+    <body>
+        <div id="gear-1" class="gear-container">
+            <div class="gear">
+                <img class="gear-image" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-2" class="gear-container">
+            <div class="gear">
+                <img class="gear-image-opposite" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-3" class="gear-container">
+            <div class="gear">
+                <img class="gear-image" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-4" class="gear-container">
+            <div class="gear">
+                <img class="gear-image-opposite" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-5" class="gear-container">
+            <div class="gear">
+                <img class="gear-image-opposite" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-6" class="gear-container">
+            <div class="gear">
+                <img class="gear-image" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+	<div class="container">
+            <div class="leftsidebar"></div>
+	    <div class="content"><head>
+    <meta charset="utf-8">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="../css/default.css" />
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="../">Home</a>
+        </nav>
+    </header>
+    <section id="random-ideas" role="main">
+<h1>Random Ideas</h1>
+<article>
+<section class="header">
+Posted on August 29, 2018
+</section>
+<section>
+<p>Since I have been fairly busy lately and have not had much time to work on my own randomizer game, I have been thinking about the various ways a standalone randomizer game could improve upon existing randomizers. This post is about some of the ideas I came up with.</p>
+<p>Perhaps unsurprisingly, at present, there are no known randomizers with built-in support for racing. While a number of games feature in-game timers, none of them feature map trackers (and why would they? :P). Many players use online trackers that must be manually updated while playing the game. Since most randomizers are for single-player games, there also is no built-in support for tracking race results, nor any means for the game to acknowledge when a racer forfeits a race. As a result, race and tournament organizers use third-party websites, such as <a href="http://www.speedrunslive.com/">SRL</a> and <a href="https://challonge.com/">challonge</a>, to track player rankings, post tournament rules, and handle various other logistical problems. While using a third-party website solves many problems, it would be much more convenient if the game handled all of these problems itself. Automatically updating trackers would save players the effort of remembering to manually mark items off. Full multiplayer support could allow players to more easily find matches, forfeit races, and check player rankings. In addition, a standalone randomizer game could also easily enforce rulesets and resolve ambiguous rules.</p>
+<p>There is also a problem of game modification. In the case of many randomizers, the randomized game is a ROM hack that must be played on an emulator, which has many legal implications. In other cases, the developers do not want people modifying their games at all. A standalone randomizer game could avoid these legal problems entirely, since there would be no need to modify the base game. Another problem related to game modification is cheating. Most randomizer races are played based on an honour system, where it is assumed that the racers have not modified their game in any way that might give them an advantage, nor have they peeked at the memory values to determine what randomizations have taken place prior to the race. As a result, players with unusual routing and remarkably high win rates are sometimes suspected of or accused of cheating. A standalone randomizer game with proper multiplayer support could certainly address these problems with proper anti-cheating measures in place.</p>
+<p>Beyond quality of life improvements, a standalone randomizer game has some additional degrees of creative freedom, particularly in the form of player interaction. In their current format, randomizer races do not typically have much, if any, direct interaction between players during a race. While it may not necessarily be desirable to change this format for all races, allowing players to interact during races could lead to different, and possibly more fun race formats. In fact, this is already happening to some extent with Bingo races, where players can see which objectives their opponents have completed in real time. However, I think this concept can be taken much further than just Bingo races. Some ideas for interactive races that I have come up with include being able to take a snapshot of what items an opponent has, or which locations an opponent has checked. These kinds of interactions would have to be very carefully balanced, of course. For instance, the game might only allow players to peek at their opponent’s inventory once per race. It is also often the case that close to the end of a race, it is very apparent who will win. Taking the idea of player interaction a step further, a rubber-banding mechanic could be implemented, such that players engage in a duel at the end of a race when the second-place finisher completes the race within some time interval after the first finisher. This kind of rubber-banding mechanic can help keep viewers and racers in suspense during close races, while still rewarding better players for finishing significantly faster than their opponents.</p>
+<p>Ultimately, I think that these ideas only scratch the surface of what a standalone randomizer game could end up looking like. Multiplayer support could also facilitate the organization of doubles races and allow for linked/shared inventories. New maps and item sets could be added for more varied gameplay. Proper support for “plandos” could be implemented in the form of a level editor. Item locations could be altered in an attempt to deliver more balanced gameplay. While many of these ideas could theoretically be implemented in existing randomizers, I think that it is much more straightforward to implement them in a standalone game designed for randomization.</p>
+</section>
+</article>
+</section>
+    <div class="spacer"></div>
+</body>
+</div>
+            <div class="rightsidebar"></div>
+	</div>
+    </body>
+    <script>
+        window.onscroll = function () {
+	    scrollRotate();
+	    scrollRotateOpposite();
+        };
+
+        function scrollRotate() {
+            let images = document.getElementsByClassName("gear-image");
+	    for (const image of images) {
+                image.style.transform = "rotate(" + window.pageYOffset/2 + "deg)";
+	    }
+        }
+
+        function scrollRotateOpposite() {
+            let images = document.getElementsByClassName("gear-image-opposite");
+	    for (const image of images) {
+                image.style.transform = "rotate(" + (-window.pageYOffset/2) + "deg)";
+	    }
+        }
+    </script>
+</html>

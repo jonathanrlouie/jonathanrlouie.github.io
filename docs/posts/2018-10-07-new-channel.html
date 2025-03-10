@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width">
+
+        <title>Types and Toucans - 2018-10-07-new-channel</title>
+
+        <!-- Stylesheets. -->
+        <link rel="stylesheet" type="text/css" href="../css/default.css?v=1">
+
+        <!-- Metadata. -->
+        <meta name="keywords" content="Jonathan Louie,blog,programming,coding,rust,idris,haskell,function,personal,homepage">
+        <meta name="description" content="Personal home page and blog of Jonathan Louie.">
+        <meta property="og:title" content="Types and Toucans - 2018-10-07-new-channel" />
+        
+    </head>
+    <body>
+        <div id="gear-1" class="gear-container">
+            <div class="gear">
+                <img class="gear-image" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-2" class="gear-container">
+            <div class="gear">
+                <img class="gear-image-opposite" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-3" class="gear-container">
+            <div class="gear">
+                <img class="gear-image" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-4" class="gear-container">
+            <div class="gear">
+                <img class="gear-image-opposite" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-5" class="gear-container">
+            <div class="gear">
+                <img class="gear-image-opposite" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-6" class="gear-container">
+            <div class="gear">
+                <img class="gear-image" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+	<div class="container">
+            <div class="leftsidebar"></div>
+	    <div class="content"><head>
+    <meta charset="utf-8">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="../css/default.css" />
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="../">Home</a>
+        </nav>
+    </header>
+    <section id="new-channel" role="main">
+<h1>New Channel</h1>
+<article>
+<section class="header">
+Posted on October 7, 2018
+</section>
+<section>
+<p>As it turns out, I just couldn’t find the time to work on a real blog post for September. In an effort to try and make some more measurable progress with my mini-rando project, I have started up a new YouTube channel for logging all my work on the project. It can be found <a href="https://www.youtube.com/channel/UCjQgvE-k654RiRCLXa7JQNw">here</a>. I intend on uploading at least once every weekend, but I will have to see how the scheduling works out.</p>
+<p>On that note, I do intend to keep posting to this blog once I have some more substantial content to post. I do have ideas for future blog posts, but it’s nice to have something more concrete to present.</p>
+</section>
+</article>
+</section>
+    <div class="spacer"></div>
+</body>
+</div>
+            <div class="rightsidebar"></div>
+	</div>
+    </body>
+    <script>
+        window.onscroll = function () {
+	    scrollRotate();
+	    scrollRotateOpposite();
+        };
+
+        function scrollRotate() {
+            let images = document.getElementsByClassName("gear-image");
+	    for (const image of images) {
+                image.style.transform = "rotate(" + window.pageYOffset/2 + "deg)";
+	    }
+        }
+
+        function scrollRotateOpposite() {
+            let images = document.getElementsByClassName("gear-image-opposite");
+	    for (const image of images) {
+                image.style.transform = "rotate(" + (-window.pageYOffset/2) + "deg)";
+	    }
+        }
+    </script>
+</html>

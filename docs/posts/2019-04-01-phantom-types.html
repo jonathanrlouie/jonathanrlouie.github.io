@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width">
+
+        <title>Types and Toucans - 2019-04-01-phantom-types</title>
+
+        <!-- Stylesheets. -->
+        <link rel="stylesheet" type="text/css" href="../css/default.css?v=1">
+
+        <!-- Metadata. -->
+        <meta name="keywords" content="Jonathan Louie,blog,programming,coding,rust,idris,haskell,function,personal,homepage">
+        <meta name="description" content="Personal home page and blog of Jonathan Louie.">
+        <meta property="og:title" content="Types and Toucans - 2019-04-01-phantom-types" />
+        
+    </head>
+    <body>
+        <div id="gear-1" class="gear-container">
+            <div class="gear">
+                <img class="gear-image" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-2" class="gear-container">
+            <div class="gear">
+                <img class="gear-image-opposite" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-3" class="gear-container">
+            <div class="gear">
+                <img class="gear-image" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-4" class="gear-container">
+            <div class="gear">
+                <img class="gear-image-opposite" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-5" class="gear-container">
+            <div class="gear">
+                <img class="gear-image-opposite" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-6" class="gear-container">
+            <div class="gear">
+                <img class="gear-image" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+	<div class="container">
+            <div class="leftsidebar"></div>
+	    <div class="content"><head>
+    <meta charset="utf-8">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="../css/default.css" />
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="../">Home</a>
+        </nav>
+    </header>
+    <section id="learning-about-phantom-types" role="main">
+<h1>Learning about Phantom Types</h1>
+<article>
+<section class="header">
+Posted on April 1, 2019
+</section>
+<section>
+<p>Well, another month has passed, and it wasn’t a particularly good one! I ended up getting the flu, which put me out of commission for a while. As a result, I decided that this month’s post would be a bit different. I asked a friend of mine to help me record <a href="https://www.youtube.com/watch?v=D3l64E_NOK4">this video</a> about phantom types, where I make an attempt to translate a page of Haskell material into Rust. I figured it would be a good opportunity for me to learn a bit about phantom types myself, get in some more Rust practice, as well as teach someone else who is less familiar with the concepts in this space some new techniques. What I didn’t really expect to do was pull up scalafiddle and go through some examples in Scala, so it ended up being sort of a nice exploration of how certain concepts are expressed in 3 different languages. Anyway, I think it was a fun little recording session and I think it will be informative for some people.</p>
+</section>
+</article>
+</section>
+    <div class="spacer"></div>
+</body>
+</div>
+            <div class="rightsidebar"></div>
+	</div>
+    </body>
+    <script>
+        window.onscroll = function () {
+	    scrollRotate();
+	    scrollRotateOpposite();
+        };
+
+        function scrollRotate() {
+            let images = document.getElementsByClassName("gear-image");
+	    for (const image of images) {
+                image.style.transform = "rotate(" + window.pageYOffset/2 + "deg)";
+	    }
+        }
+
+        function scrollRotateOpposite() {
+            let images = document.getElementsByClassName("gear-image-opposite");
+	    for (const image of images) {
+                image.style.transform = "rotate(" + (-window.pageYOffset/2) + "deg)";
+	    }
+        }
+    </script>
+</html>

@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width">
+
+        <title>Types and Toucans - 2020-05-02-idris-struggles</title>
+
+        <!-- Stylesheets. -->
+        <link rel="stylesheet" type="text/css" href="../css/default.css?v=1">
+
+        <!-- Metadata. -->
+        <meta name="keywords" content="Jonathan Louie,blog,programming,coding,rust,idris,haskell,function,personal,homepage">
+        <meta name="description" content="Personal home page and blog of Jonathan Louie.">
+        <meta property="og:title" content="Types and Toucans - 2020-05-02-idris-struggles" />
+        
+    </head>
+    <body>
+        <div id="gear-1" class="gear-container">
+            <div class="gear">
+                <img class="gear-image" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-2" class="gear-container">
+            <div class="gear">
+                <img class="gear-image-opposite" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-3" class="gear-container">
+            <div class="gear">
+                <img class="gear-image" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-4" class="gear-container">
+            <div class="gear">
+                <img class="gear-image-opposite" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-5" class="gear-container">
+            <div class="gear">
+                <img class="gear-image-opposite" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-6" class="gear-container">
+            <div class="gear">
+                <img class="gear-image" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+	<div class="container">
+            <div class="leftsidebar"></div>
+	    <div class="content"><head>
+    <meta charset="utf-8">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="../css/default.css" />
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="../">Home</a>
+        </nav>
+    </header>
+    <section id="idris-struggles" role="main">
+<h1>Idris Struggles</h1>
+<article>
+<section class="header">
+Posted on May 2, 2020
+</section>
+<section>
+<p>Oh no, I missed a month! What happened? Well, I recently found myself deep in a new project and didn’t want to make a blog post about it until I was finished. Needless to say, that took longer than expected. In fact, it took a bit TOO long, since I’m actually writing this before having finished said project. I underestimated the complexity of the task but hey, that’s software development, right? Anyway, this felt like a good time to write about my new project and the reasons why it’s taking so long.</p>
+<p>Before I get started though, a reader suggested that I try adding a tl;dr section to my posts to summarize what the post is going to be about. So, without further ado, here’s my tl;dr: Idris’ package management story is pretty disappointing and the ecosystem is very immature. I tried to create a React project with Idris and ended up attempting to create React bindings, which I still haven’t completed due to various issues that came up.</p>
+<h1 id="story-time">Story time!</h1>
+<p>So recently, there’s been a lot of discussion in the <a href="https://en.wikipedia.org/wiki/The_Legend_of_Zelda:_The_Wind_Waker">Wind Waker</a> speedrunning community about a little mini-game known as “Sploosh Kaboom”. For context, it’s a little battleship mini-game that the player needs to complete in order to get some items in the game required for 100% completion. It’s very difficult to complete this mini-game quickly and reliably because the locations of the ships are randomly generated. Fortunately, <a href="https://github.com/petersn/web-sploosh-kaboom">a new tool</a> has been developed to help runners more consistently complete this mini-game. There’s a live version written in React and I also wanted to write a similar sort of app using Idris. However, as I very quickly found out, one does not simply write a cute little React app in Idris…</p>
+<h1 id="react-in-idris">React in Idris?</h1>
+<p>My first thought when working on this project was to take advantage of any existing React bindings there might be for Idris. However, it turns out that there… kind of aren’t any? There was <a href="https://github.com/jheiling/idris-react">one package</a> I found which supported some subset of React’s functionality, but it’s pretty incomplete and does not allow state updates. That’s a bit of a deal-breaker, since that defeats the entire purpose of React! It also hasn’t been updated in the last 2 years. I also stumbled upon <a href="https://www.reddit.com/r/Idris/comments/5mrcpa/state_of_the_js_backend_react_bindings_possible/">a Reddit thread</a> talking about the viability of React bindings for Idris. It suggested that React hooks might be a viable option. Thus, given the current situation, I decided to try and write my own React bindings. This couldn’t possibly be that bad, right?</p>
+<h1 id="package-management">Package management</h1>
+<p>Initially, I tried to extend what the existing idris-react package does (thank you, unlicense!) since their API was actually pretty nice, barring the lack of type-safety around HTML attributes. When I tried downloading the idris-react package and installing it to test out how it worked, I immediately ran into problems. It turns out that the package was dependent on other packages by the same author. Furthermore, it turns out that Idris doesn’t download transitive dependencies. For some reason, I was expecting an experience similar to <code>cargo</code> or other package managers. Nope, if you want that behaviour, you need to use an actual package manager, like <a href="https://github.com/elba/elba">elba</a>. So at this point, I’m thinking “okay, this is fine, I can just use elba, right?”. Well, it turns out that most projects in the Idris ecosystem are using the default ipkg format that comes with Idris. Supposedly, it should be possible to use these ipkg files as dependencies in your elba projects, but I had no success trying to get this to work. From what I have seen, elba treats ipkgs as <a href="https://github.com/elba/elba/issues/25">“legacy”</a>, even though <a href="http://docs.idris-lang.org/en/latest/tutorial/packages.html">Idris’ official documentation</a> points you towards ipkgs. Yeah, this is already getting pretty sketchy. Worse still, there doesn’t seem to be any package registry like crates.io to work with. Ultimately, I decided that I was going to just make my project an elba project (I like auto-downloading transitive dependencies) and also build an ipkg to hedge my bets, but this whole situation left me feeling pretty uneasy about the current state of Idris’ “ecosystem”. I also needed to recreate some of idris-react’s dependencies in my React library to avoid the issues with transitive dependencies. I considered using <a href="https://github.com/idris-hackers/IdrisScript">IdrisScript</a> as a dependency to replace <a href="https://github.com/jheiling/idris-js">idris-js</a>, but I doubt I can safely depend on other Idris projects currently, especially when they use ipkgs and I use elba. Some clarity around this situation would certainly help.</p>
+<h1 id="extending-idris-react">Extending idris-react</h1>
+<p>For the uninitiated, Idris has a JS backend which allows programmers to compile Idris code into JS. It’s fairly simple to use once you understand how it works, but getting into it at first wasn’t entirely smooth. Documentation for JS FFI is fairly sparse, not unlike the rest of the documentation for Idris. Thankfully, reading through idris-react’s code and playing with it for a bit gave me a pretty good sense of how to call JS functions from Idris. This alone pretty much gave me all the tools I needed to start extending idris-react to support state. However, there was one incredibly annoying issue that I had to deal with when trying to work with JavaScript functions. Here it is:</p>
+<pre><code>Type checking .\Main.idr
+idris-codegen-javascript: Foreign arg type FApp JS_FnT [FUnknown,FApp JS_Fn [FUnknown,FUnknown,FApp JS_IntT [FUnk
+nown,FCon JS_IntNative],FApp JS_Fn [FApp IO' [FApp MkFFI [FCon JS_Types,FUnknown,FUnknown],FCon Ptr],FApp JsFn [F
+Unknown],FApp JS_FnT [FUnknown,FApp JS_Fn [FApp IO' [FApp MkFFI [FCon JS_Types,FUnknown,FUnknown],FCon Unit],FUnk
+nown,FApp JS_IntT [FUnknown,FCon JS_IntNative],FApp JS_FnIO [FCon Unit,FApp MkFFI [FCon JS_Types,FUnknown,FUnknow
+n],FCon JS_Unit]]],FApp JS_FnIO [FCon Ptr,FApp MkFFI [FCon JS_Types,FUnknown,FUnknown],FCon JS_Ptr]]]] not suppor
+ted. While generating function &quot;Main__functionComponent&quot;
+CallStack (from HasCallStack):
+  error, called at src\\IRTS\\JavaScript\\Codegen.hs:590:5 in idris-1.3.2-5Gig6NOiRaNAai6p4RTlCG:IRTS.JavaScript.
+Codegen
+FAILURE: &quot;idris-codegen-javascript&quot;</code></pre>
+<p>Yup. That error message is quite the doozy. Creatively commenting out sections of my code helped me diagnose what was causing this message to be generated. It turns out that any type signature containing a JavaScript function (<code>JsFn</code> type constructor in Idris) that takes more than one argument causes the JS codegen to fail. This seemed like a pretty big problem, especially since the error message mentions something about the foreign arg type being “not supported”. I almost gave up at this point, but decided to go to the <a href="https://github.com/idris-lang/Idris-dev">Idris repository on GitHub</a> and look at the Codegen.hs source code file mentioned in the error message. After careful inspection, I came to realize that Idris does support JavaScript functions that take multiple arguments, but those JS functions <em>must be in curried form</em>. This realization unblocked me, but it was certainly a nasty pitfall considering what the original error message was and what it took for me to figure out the actual root cause.</p>
+<h1 id="react-hooks">React Hooks</h1>
+<p>At this point you might be wondering why I needed to fiddle with <code>JsFn</code>s that take multiple arguments. Remember that Reddit thread I mentioned earlier that was trying to use hooks? Well, I was trying to write a function that returns a component that calls <code>React.useState</code>, since it’s quite difficult to force Idris to generate code that React will accept as a “function component” while allowing the user to call <code>useState</code> themselves. Basically, I was taking a callback that takes the state and state updater generated by calling <code>useState</code> and creating a function component from that. This was working when I tested the code using a CDN. However, I decided to try and use the Node.js to create a cute little test application to see how this works in a more realistic deployment. It turns out that this was a very good call, because the test application I created came with a linter that caught a React Hook rule violation. I was calling <code>useState</code> in a callback, which violates the first rule in the <a href="https://reactjs.org/docs/hooks-rules.html">“Rules of Hooks”</a> documentation. At this point, I realized that everything I’ve done so far isn’t going to work. I pondered my options and could only come up with 2 plausible answers. I could try to avoid the callback by interpolating certain arguments like how we call JS functions through FFI normally and see if I can assign the component to a variable. However, I have a feeling this wouldn’t work and would still be considered a violation of the “Only Call Hooks at the Top Level” rule. The second option would be to support class based components, similar to how the PureScript React bindings work. This is more likely to work, but would be significantly more effort to implement. This is currently where the project stands today, so I will have to investigate both approaches to see what works.</p>
+<h1 id="other-issues">Other issues</h1>
+<p>There was a point where I tried to use an external JS file to house the stateful component creation function. However, elba does not seem to support libraries that use the <code>%include</code> directive. It runs the build from the target directory, which doesn’t contain any external JS files that might live in library code. It’s somewhat unfortunate that elba doesn’t seem to have any solution for this issue, but I was able to circumvent this by inlining all of the JavaScript in the Idris code.</p>
+<p>I also found that idris-react doesn’t really support passing functions as HTML attribute values. I couldn’t even create a button with an onClick handler. I added some basic functionality for this by having <code>() -&gt; JS_IO ()</code> implement the <code>Member</code> interface, but this isn’t really very flexible. Ideally, I would add some way to support arbitrary functions. While idris-react does support <code>Ptr</code> as a <code>Member</code> type, it would be nice for the API to be a bit more type-safe and only allow function types.</p>
+<h1 id="closing-thoughts">Closing thoughts</h1>
+<p>After this experience, I feel like Idris really has a long way to go before it can be considered for any production projects. The current state of the ecosystem as well as package management is pretty confusing and sends conflicting messages to library authors trying to decide what solution to use. If elba is the future of Idris’ package management, then I would also like to see some kind of package registry to improve package discoverability. I do like how elba has namespaced packages, however. Error messages in Idris also need a huge improvement, especially for the JS codegen. The error message I mentioned earlier could easily have been shortened to something more readable, such as “Sorry, we don’t support uncurried JS functions”. There was also a point during this project where I was given the error message “Can’t find implementation for StateObject Int” with no context aside from the line number. The problem was that a definition was private when it needed to be public. When I run into this kind of problem in Rust, I get an error message that tells me to mark a method as <code>pub</code> if I want to use it, so it’s pretty frustrating when Idris doesn’t tell me anything useful when encountering the exact same scenario. Maybe there is some difficulty in accurately outputting the correct error messages in Idris, I’m not sure, but more mainstream languages have much clearer error messages. I wouldn’t be surprised if these issues hindered Idris’ adoption rate and caused it to fall behind other dependently typed languages in the future.</p>
+<p>With all that being said, I do still want to finish these React bindings. However, it may take a while yet, since I still haven’t worked out a proper solution for handling stateful components. I’ve narrowed down my options a bit at this point and don’t foresee any other major issues cropping up, so I think I’m getting close, but I’m probably going to take a short break before I tackle this project again.</p>
+</section>
+</article>
+</section>
+    <div class="spacer"></div>
+</body>
+</div>
+            <div class="rightsidebar"></div>
+	</div>
+    </body>
+    <script>
+        window.onscroll = function () {
+	    scrollRotate();
+	    scrollRotateOpposite();
+        };
+
+        function scrollRotate() {
+            let images = document.getElementsByClassName("gear-image");
+	    for (const image of images) {
+                image.style.transform = "rotate(" + window.pageYOffset/2 + "deg)";
+	    }
+        }
+
+        function scrollRotateOpposite() {
+            let images = document.getElementsByClassName("gear-image-opposite");
+	    for (const image of images) {
+                image.style.transform = "rotate(" + (-window.pageYOffset/2) + "deg)";
+	    }
+        }
+    </script>
+</html>

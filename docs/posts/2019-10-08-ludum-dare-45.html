@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width">
+
+        <title>Types and Toucans - 2019-10-08-ludum-dare-45</title>
+
+        <!-- Stylesheets. -->
+        <link rel="stylesheet" type="text/css" href="../css/default.css?v=1">
+
+        <!-- Metadata. -->
+        <meta name="keywords" content="Jonathan Louie,blog,programming,coding,rust,idris,haskell,function,personal,homepage">
+        <meta name="description" content="Personal home page and blog of Jonathan Louie.">
+        <meta property="og:title" content="Types and Toucans - 2019-10-08-ludum-dare-45" />
+        
+    </head>
+    <body>
+        <div id="gear-1" class="gear-container">
+            <div class="gear">
+                <img class="gear-image" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-2" class="gear-container">
+            <div class="gear">
+                <img class="gear-image-opposite" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-3" class="gear-container">
+            <div class="gear">
+                <img class="gear-image" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-4" class="gear-container">
+            <div class="gear">
+                <img class="gear-image-opposite" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-5" class="gear-container">
+            <div class="gear">
+                <img class="gear-image-opposite" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-6" class="gear-container">
+            <div class="gear">
+                <img class="gear-image" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+	<div class="container">
+            <div class="leftsidebar"></div>
+	    <div class="content"><head>
+    <meta charset="utf-8">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="../css/default.css" />
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="../">Home</a>
+        </nav>
+    </header>
+    <section id="ludum-dare-45-postmortem" role="main">
+<h1>Ludum Dare 45 Postmortem</h1>
+<article>
+<section class="header">
+Posted on October 8, 2019
+</section>
+<section>
+<p>This past weekend, I participated in Ludum Dare 45. I decided to created to enter in the Jam rather than the Compo, since I’m still learning how to use Amethyst as well as the various other crates.</p>
+<h1 id="the-theme">The Theme</h1>
+<p>The theme of the competition was “Start with nothing”, which I felt was perhaps a bit too open-ended. This is a theme that really feels like it could be applied to a majority of games in some way. In the end, after spending several hours of the first day coming up with an idea, I settled on a game where you play as a guinea pig that eats food. The idea was to start every stage with an empty belly to incorporate the theme. Eating a piece of food would give the player more power, which could be used to fight off predators. Trying to eat food on a full belly would cause the player to ignore the food. Fighting off predators would cause the belly meter to decrease and make the guinea pig hungrier. At the end of each stage, depending on how full the player’s belly is, the player would lose power overnight as they sleep. Thus, the goal of the game would be to eat as much food as possible to gain power, but ultimately try to have a full belly at the end of each stage.</p>
+<h1 id="what-went-well">What went well</h1>
+<p>All of the work I have put into tilemapping paid off pretty well. I ended up using Amethyst’s new tilemapping subcrate, which was pretty easy to pick up and use out of the box. I was also using Tiled with the tiled crate, as I usually do. This ended up being very smooth, minus one issue caused by me not running cargo update as soon as I should have. My skeleton project helped me get setup very quickly too, so I did not need to use the amethyst starter kit.</p>
+<p>I’d also like to give a shoutout to nalgebra for using type-level numbers for improved type-checking. It definitely saved me from passing around vectors and matrices with the wrong dimensions at least a few times during the jam.</p>
+<h1 id="what-went-wrong">What went wrong</h1>
+<p>ncollide was probably what bogged me down the most. Having read Icefoxen’s ld42 postmortem, I knew that it would slow me down somewhat, but I thought that it would be fine after having read some of their code. This turned out to be false, and I spent an entire day setting up collision, which is still a little buggy, even after the competition. In some ways, I think I probably could have hand-rolled the collision, but I wanted to learn ncollide anyway for other projects. I was unfamiliar with nalgebra and its API, which gave me a bit of trouble at first as well. Closer to the end of the competition, I decided to work on animations, which did not work at all the way I expected. I still have some major issues to work out with them, so that wasn’t going to happen during the competition at all. Lastly, compiling the project after each change took up to a full minute each time, which was pretty annoying. I definitely should have been taking advantage of prefabs to bypass these issues, seeing how easy it was to modify the tilemap via Tiled.</p>
+<h1 id="the-final-result">The Final Result</h1>
+<p>Sadly, I did not finish my entry. The code is up <a href="https://github.com/jonathanrlouie/ld45">on GitHub</a>, but it’s definitely not a complete or even playable game. However, I am happy to have learned a lot more about building games in Amethyst, and I definitely will have a better strategy the next time I try a game jam. I’m more prepared now to use ncollide and I know some other problem areas I need to work on, such as getting animations working properly. Once I work out all of these issues, I should be able to create simple 2D games fairly quickly.</p>
+</section>
+</article>
+</section>
+    <div class="spacer"></div>
+</body>
+</div>
+            <div class="rightsidebar"></div>
+	</div>
+    </body>
+    <script>
+        window.onscroll = function () {
+	    scrollRotate();
+	    scrollRotateOpposite();
+        };
+
+        function scrollRotate() {
+            let images = document.getElementsByClassName("gear-image");
+	    for (const image of images) {
+                image.style.transform = "rotate(" + window.pageYOffset/2 + "deg)";
+	    }
+        }
+
+        function scrollRotateOpposite() {
+            let images = document.getElementsByClassName("gear-image-opposite");
+	    for (const image of images) {
+                image.style.transform = "rotate(" + (-window.pageYOffset/2) + "deg)";
+	    }
+        }
+    </script>
+</html>

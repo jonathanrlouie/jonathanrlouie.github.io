@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width">
+
+        <title>Types and Toucans - 2018-12-03-seed-generation</title>
+
+        <!-- Stylesheets. -->
+        <link rel="stylesheet" type="text/css" href="../css/default.css?v=1">
+
+        <!-- Metadata. -->
+        <meta name="keywords" content="Jonathan Louie,blog,programming,coding,rust,idris,haskell,function,personal,homepage">
+        <meta name="description" content="Personal home page and blog of Jonathan Louie.">
+        <meta property="og:title" content="Types and Toucans - 2018-12-03-seed-generation" />
+        
+    </head>
+    <body>
+        <div id="gear-1" class="gear-container">
+            <div class="gear">
+                <img class="gear-image" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-2" class="gear-container">
+            <div class="gear">
+                <img class="gear-image-opposite" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-3" class="gear-container">
+            <div class="gear">
+                <img class="gear-image" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-4" class="gear-container">
+            <div class="gear">
+                <img class="gear-image-opposite" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-5" class="gear-container">
+            <div class="gear">
+                <img class="gear-image-opposite" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-6" class="gear-container">
+            <div class="gear">
+                <img class="gear-image" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+	<div class="container">
+            <div class="leftsidebar"></div>
+	    <div class="content"><head>
+    <meta charset="utf-8">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="../css/default.css" />
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="../">Home</a>
+        </nav>
+    </header>
+    <section id="shareable-seed-generation" role="main">
+<h1>Shareable Seed Generation</h1>
+<article>
+<section class="header">
+Posted on December 3, 2018
+</section>
+<section>
+<p>While working on Mini-rando, I found myself in need of a way to generate random seeds that are shareable with other players. This did not strike me as being a particularly difficult task at first, but the problem ended up being a little more complex than I initially had imagined. It also was not easy finding design documentation on this issue online. As a result, I decided to document how I approached this issue.</p>
+<p>The first issue I encountered was deciding on a seed format. Since the intent is for players to input these seeds themselves, I needed to design the seed format such that it made for an acceptable user experience. As a result, my criteria for the format was that the seeds were of a reasonably short length, and could not contain ambiguous characters. I also required the seed format to be complex enough so that there would be a large enough number of unique seeds such that players would not end up playing the same few seeds and becoming bored. Since sharing seeds is a somewhat common practice among randomized games, including a number of roguelikes, I decided to look at a couple of different games to see how they formatted seeds. The first game I looked at was Crypt of the Necrodancer. I noted that the seeded mode took a non-lowercase alphanumeric string of length 10 as an input seed. Likewise, after looking at one of the ALTTP randomizer seeds shared on <a href="https://www.reddit.com/r/alttpr">r/alttpr</a>, I noticed that it used the same seed format. While I do not fully understand the significance of this seed format, I decided to follow along and attempt to do the same, since the format fits my criteria reasonably well.</p>
+<p>To generate the seed itself, I decided to start by using the <code>rand</code> crate’s default <code>thread_rng()</code> function. Immediately, I noted two issues. The first was that the <code>thread_rng()</code> function produced an integer value. This meant that I needed to perform some kind of transformation on the output of <code>thread_rng()</code> in order to get a seed in the format I wanted. The second issue was that most seedable RNGs are seeded using integer values or byte arrays, and <code>rand</code> is no exception. This meant that I could not possibly hope to pass a seed with alphanumeric format to the RNG as is. In order to preserve the easy-to-share nature of the seeds while still being able to have fairly complex seed values that worked with <code>rand</code>, I decided to split the definition of the seed into two parts. One would be the seed’s user-friendly ID, and the other would be its <code>rand</code>-friendly integer representation:</p>
+<div id="cb1" class="sourceCode">
+<div class="sourceCode" id="cb1"><pre class="sourceCode rust"><code class="sourceCode rust"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">pub</span> <span class="kw">struct</span> SeedId(<span class="kw">pub</span> <span class="dt">String</span>)<span class="op">;</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="kw">pub</span> <span class="kw">struct</span> IntSeed(<span class="kw">pub</span> <span class="dt">u64</span>)<span class="op">;</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="kw">pub</span> <span class="kw">struct</span> Seed <span class="op">{</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">pub</span> id<span class="op">:</span> SeedId<span class="op">,</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">pub</span> int_seed<span class="op">:</span> IntSeed</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+</div>
+<p>To generate the user-friendly ID, I first looked through the documentation for <code>rand</code> to see if there was not already an existing solution to the problem. Though the alphanumeric distribution seemed promising, it included lowercase letters. Thus, I opted to write my own transformation function. Since there are 26 letters in the English alphabet and 10 digits, there are 36 possible values for each character in total. By generating each character as an integer in the range [0, 35], I simply mapped each integer to its corresponding character with the following function:</p>
+<div id="cb2" class="sourceCode">
+<div class="sourceCode" id="cb2"><pre class="sourceCode rust"><code class="sourceCode rust"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">fn</span> map_to_id_char(num<span class="op">:</span> <span class="dt">u8</span>) <span class="op">-&gt;</span> <span class="dt">char</span> <span class="op">{</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="pp">debug_assert!</span>(num <span class="op">&lt;=</span> <span class="dv">35</span>)<span class="op">;</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">match</span> num <span class="op">{</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>        <span class="dv">0</span> <span class="op">=&gt;</span> <span class="ch">'A'</span><span class="op">,</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>        <span class="dv">1</span> <span class="op">=&gt;</span> <span class="ch">'B'</span><span class="op">,</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>        <span class="dv">2</span> <span class="op">=&gt;</span> <span class="ch">'C'</span><span class="op">,</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>        <span class="dv">3</span> <span class="op">=&gt;</span> <span class="ch">'D'</span><span class="op">,</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>        <span class="dv">4</span> <span class="op">=&gt;</span> <span class="ch">'E'</span><span class="op">,</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>        <span class="dv">5</span> <span class="op">=&gt;</span> <span class="ch">'F'</span><span class="op">,</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>        <span class="dv">6</span> <span class="op">=&gt;</span> <span class="ch">'G'</span><span class="op">,</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>        <span class="dv">7</span> <span class="op">=&gt;</span> <span class="ch">'H'</span><span class="op">,</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>        <span class="dv">8</span> <span class="op">=&gt;</span> <span class="ch">'I'</span><span class="op">,</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>        <span class="dv">9</span> <span class="op">=&gt;</span> <span class="ch">'J'</span><span class="op">,</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>        <span class="dv">10</span> <span class="op">=&gt;</span> <span class="ch">'K'</span><span class="op">,</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>        <span class="dv">11</span> <span class="op">=&gt;</span> <span class="ch">'L'</span><span class="op">,</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>        <span class="dv">12</span> <span class="op">=&gt;</span> <span class="ch">'M'</span><span class="op">,</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>        <span class="dv">13</span> <span class="op">=&gt;</span> <span class="ch">'N'</span><span class="op">,</span></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>        <span class="dv">14</span> <span class="op">=&gt;</span> <span class="ch">'O'</span><span class="op">,</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>        <span class="dv">15</span> <span class="op">=&gt;</span> <span class="ch">'P'</span><span class="op">,</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>        <span class="dv">16</span> <span class="op">=&gt;</span> <span class="ch">'Q'</span><span class="op">,</span></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>        <span class="dv">17</span> <span class="op">=&gt;</span> <span class="ch">'R'</span><span class="op">,</span></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>        <span class="dv">18</span> <span class="op">=&gt;</span> <span class="ch">'S'</span><span class="op">,</span></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>        <span class="dv">19</span> <span class="op">=&gt;</span> <span class="ch">'T'</span><span class="op">,</span></span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>        <span class="dv">20</span> <span class="op">=&gt;</span> <span class="ch">'U'</span><span class="op">,</span></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>        <span class="dv">21</span> <span class="op">=&gt;</span> <span class="ch">'V'</span><span class="op">,</span></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>        <span class="dv">22</span> <span class="op">=&gt;</span> <span class="ch">'W'</span><span class="op">,</span></span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>        <span class="dv">23</span> <span class="op">=&gt;</span> <span class="ch">'X'</span><span class="op">,</span></span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>        <span class="dv">24</span> <span class="op">=&gt;</span> <span class="ch">'Y'</span><span class="op">,</span></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>        <span class="dv">25</span> <span class="op">=&gt;</span> <span class="ch">'Z'</span><span class="op">,</span></span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>        <span class="dv">26</span> <span class="op">=&gt;</span> <span class="ch">'0'</span><span class="op">,</span></span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a>        <span class="dv">27</span> <span class="op">=&gt;</span> <span class="ch">'1'</span><span class="op">,</span></span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>        <span class="dv">28</span> <span class="op">=&gt;</span> <span class="ch">'2'</span><span class="op">,</span></span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a>        <span class="dv">29</span> <span class="op">=&gt;</span> <span class="ch">'3'</span><span class="op">,</span></span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>        <span class="dv">30</span> <span class="op">=&gt;</span> <span class="ch">'4'</span><span class="op">,</span></span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a>        <span class="dv">31</span> <span class="op">=&gt;</span> <span class="ch">'5'</span><span class="op">,</span></span>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a>        <span class="dv">32</span> <span class="op">=&gt;</span> <span class="ch">'6'</span><span class="op">,</span></span>
+<span id="cb2-37"><a href="#cb2-37" aria-hidden="true" tabindex="-1"></a>        <span class="dv">33</span> <span class="op">=&gt;</span> <span class="ch">'7'</span><span class="op">,</span></span>
+<span id="cb2-38"><a href="#cb2-38" aria-hidden="true" tabindex="-1"></a>        <span class="dv">34</span> <span class="op">=&gt;</span> <span class="ch">'8'</span><span class="op">,</span></span>
+<span id="cb2-39"><a href="#cb2-39" aria-hidden="true" tabindex="-1"></a>        <span class="dv">35</span> <span class="op">=&gt;</span> <span class="ch">'9'</span><span class="op">,</span></span>
+<span id="cb2-40"><a href="#cb2-40" aria-hidden="true" tabindex="-1"></a>        _ <span class="op">=&gt;</span> <span class="ch">'A'</span></span>
+<span id="cb2-41"><a href="#cb2-41" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-42"><a href="#cb2-42" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+</div>
+<p>Admittedly, this is not the most elegant solution and the error handling could be improved. However, it gets the job done for now. The actual ID generation code looks something like this:</p>
+<div id="cb3" class="sourceCode">
+<div class="sourceCode" id="cb3"><pre class="sourceCode rust"><code class="sourceCode rust"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">use</span> <span class="pp">rand::</span><span class="op">{</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    thread_rng<span class="op">,</span> Rng<span class="op">,</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="pp">distributions::</span>Uniform</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> ID_LENGTH<span class="op">:</span> <span class="dt">usize</span> <span class="op">=</span> <span class="dv">10</span><span class="op">;</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> range <span class="op">=</span> <span class="pp">Uniform::</span>new_inclusive(<span class="dv">0</span><span class="op">,</span> <span class="dv">35</span>)<span class="op">;</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> id <span class="op">=</span> thread_rng()</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span>sample_iter(<span class="op">&amp;</span>range)</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span>take(ID_LENGTH)</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span>map(<span class="op">|</span>c<span class="op">:</span> <span class="dt">u8</span><span class="op">|</span> map_to_id_char(c))</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="pp">collect::</span><span class="op">&lt;</span><span class="dt">String</span><span class="op">&gt;</span>()<span class="op">;</span></span></code></pre></div>
+</div>
+<p>And that’s all! It ended up being very simple to implement.</p>
+<p>Next, I needed to create the <code>rand</code>-friendly integer representation of the seed. This seemed a bit more tricky. I pondered how all these games were taking these 10 character alphanumeric strings and using them as RNG seeds. With a 10 character string where each character can take on one of 36 different values, there are 36<sup>10</sup> different seed values, which is far too many unique values for a pattern matching expression. Thus, after a bit of research, I decided that the best solution was to hash the user-friendly seed ID to get its <code>u64</code> representation. Rather than implementing my own hashing algorithm, I decided to take advantage of Rust’s <code>std::hash::Hash</code> and <code>std::hash::Hasher</code> traits to do the work for me:</p>
+<div id="cb4" class="sourceCode">
+<div class="sourceCode" id="cb4"><pre class="sourceCode rust"><code class="sourceCode rust"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">use</span> <span class="pp">std::collections::hash_map::</span>DefaultHasher<span class="op">;</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="kw">use</span> <span class="pp">std::hash::</span><span class="op">{</span><span class="bu">Hash</span><span class="op">,</span> <span class="bu">Hasher</span><span class="op">};</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="kw">fn</span> hash_seed_id<span class="op">&lt;</span>T<span class="op">:</span> <span class="bu">Hash</span><span class="op">&gt;</span>(id<span class="op">:</span> <span class="op">&amp;</span>T) <span class="op">-&gt;</span> IntSeed <span class="op">{</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">let</span> <span class="kw">mut</span> hasher <span class="op">=</span> <span class="pp">DefaultHasher::</span>new()<span class="op">;</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    id<span class="op">.</span>hash(<span class="op">&amp;</span><span class="kw">mut</span> hasher)<span class="op">;</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    IntSeed(hasher<span class="op">.</span>finish())</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> int_seed <span class="op">=</span> hash_seed_id(<span class="op">&amp;</span>id)<span class="op">;</span></span></code></pre></div>
+</div>
+<p>Finally, here is what the combined code ended up looking like:</p>
+<div id="cb5" class="sourceCode">
+<div class="sourceCode" id="cb5"><pre class="sourceCode rust"><code class="sourceCode rust"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">use</span> <span class="pp">rand::</span><span class="op">{</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    thread_rng<span class="op">,</span> Rng<span class="op">,</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    <span class="pp">distributions::</span>Uniform</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="kw">use</span> <span class="pp">std::collections::hash_map::</span>DefaultHasher<span class="op">;</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="kw">use</span> <span class="pp">std::hash::</span><span class="op">{</span><span class="bu">Hash</span><span class="op">,</span> <span class="bu">Hasher</span><span class="op">};</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> ID_LENGTH<span class="op">:</span> <span class="dt">usize</span> <span class="op">=</span> <span class="dv">10</span><span class="op">;</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="kw">pub</span> <span class="kw">struct</span> SeedId(<span class="kw">pub</span> <span class="dt">String</span>)<span class="op">;</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="kw">pub</span> <span class="kw">struct</span> IntSeed(<span class="kw">pub</span> <span class="dt">u64</span>)<span class="op">;</span></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a><span class="kw">pub</span> <span class="kw">struct</span> Seed <span class="op">{</span></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>    <span class="kw">pub</span> id<span class="op">:</span> SeedId<span class="op">,</span></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>    <span class="kw">pub</span> int_seed<span class="op">:</span> IntSeed</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a><span class="kw">impl</span> Seed <span class="op">{</span></span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>    <span class="kw">pub</span> <span class="kw">fn</span> generate_seed() <span class="op">-&gt;</span> <span class="dt">Self</span> <span class="op">{</span></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>        <span class="kw">let</span> range <span class="op">=</span> <span class="pp">Uniform::</span>new_inclusive(<span class="dv">0</span><span class="op">,</span> <span class="dv">35</span>)<span class="op">;</span></span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>        <span class="kw">let</span> id <span class="op">=</span> thread_rng()</span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>            <span class="op">.</span>sample_iter(<span class="op">&amp;</span>range)</span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>            <span class="op">.</span>take(ID_LENGTH)</span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>            <span class="op">.</span>map(<span class="op">|</span>c<span class="op">:</span> <span class="dt">u8</span><span class="op">|</span> map_to_id_char(c))</span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a>            <span class="op">.</span><span class="pp">collect::</span><span class="op">&lt;</span><span class="dt">String</span><span class="op">&gt;</span>()<span class="op">;</span></span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a>        <span class="kw">let</span> int_seed <span class="op">=</span> hash_seed_id(<span class="op">&amp;</span>id)<span class="op">;</span></span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a>        Seed <span class="op">{</span></span>
+<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a>            id<span class="op">:</span> SeedId(id)<span class="op">,</span></span>
+<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a>            int_seed</span>
+<span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb5-36"><a href="#cb5-36" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb5-37"><a href="#cb5-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-38"><a href="#cb5-38" aria-hidden="true" tabindex="-1"></a><span class="kw">fn</span> hash_seed_id<span class="op">&lt;</span>T<span class="op">:</span> <span class="bu">Hash</span><span class="op">&gt;</span>(id<span class="op">:</span> <span class="op">&amp;</span>T) <span class="op">-&gt;</span> IntSeed <span class="op">{</span></span>
+<span id="cb5-39"><a href="#cb5-39" aria-hidden="true" tabindex="-1"></a>    <span class="kw">let</span> <span class="kw">mut</span> hasher <span class="op">=</span> <span class="pp">DefaultHasher::</span>new()<span class="op">;</span></span>
+<span id="cb5-40"><a href="#cb5-40" aria-hidden="true" tabindex="-1"></a>    id<span class="op">.</span>hash(<span class="op">&amp;</span><span class="kw">mut</span> hasher)<span class="op">;</span></span>
+<span id="cb5-41"><a href="#cb5-41" aria-hidden="true" tabindex="-1"></a>    IntSeed(hasher<span class="op">.</span>finish())</span>
+<span id="cb5-42"><a href="#cb5-42" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb5-43"><a href="#cb5-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-44"><a href="#cb5-44" aria-hidden="true" tabindex="-1"></a><span class="kw">fn</span> map_to_id_char(num<span class="op">:</span> <span class="dt">u8</span>) <span class="op">-&gt;</span> <span class="dt">char</span> <span class="op">{</span></span>
+<span id="cb5-45"><a href="#cb5-45" aria-hidden="true" tabindex="-1"></a>    <span class="pp">debug_assert!</span>(num <span class="op">&lt;=</span> <span class="dv">35</span>)<span class="op">;</span></span>
+<span id="cb5-46"><a href="#cb5-46" aria-hidden="true" tabindex="-1"></a>    <span class="cf">match</span> num <span class="op">{</span></span>
+<span id="cb5-47"><a href="#cb5-47" aria-hidden="true" tabindex="-1"></a>        <span class="dv">0</span> <span class="op">=&gt;</span> <span class="ch">'A'</span><span class="op">,</span></span>
+<span id="cb5-48"><a href="#cb5-48" aria-hidden="true" tabindex="-1"></a>        <span class="dv">1</span> <span class="op">=&gt;</span> <span class="ch">'B'</span><span class="op">,</span></span>
+<span id="cb5-49"><a href="#cb5-49" aria-hidden="true" tabindex="-1"></a>        <span class="dv">2</span> <span class="op">=&gt;</span> <span class="ch">'C'</span><span class="op">,</span></span>
+<span id="cb5-50"><a href="#cb5-50" aria-hidden="true" tabindex="-1"></a>        <span class="dv">3</span> <span class="op">=&gt;</span> <span class="ch">'D'</span><span class="op">,</span></span>
+<span id="cb5-51"><a href="#cb5-51" aria-hidden="true" tabindex="-1"></a>        <span class="dv">4</span> <span class="op">=&gt;</span> <span class="ch">'E'</span><span class="op">,</span></span>
+<span id="cb5-52"><a href="#cb5-52" aria-hidden="true" tabindex="-1"></a>        <span class="dv">5</span> <span class="op">=&gt;</span> <span class="ch">'F'</span><span class="op">,</span></span>
+<span id="cb5-53"><a href="#cb5-53" aria-hidden="true" tabindex="-1"></a>        <span class="dv">6</span> <span class="op">=&gt;</span> <span class="ch">'G'</span><span class="op">,</span></span>
+<span id="cb5-54"><a href="#cb5-54" aria-hidden="true" tabindex="-1"></a>        <span class="dv">7</span> <span class="op">=&gt;</span> <span class="ch">'H'</span><span class="op">,</span></span>
+<span id="cb5-55"><a href="#cb5-55" aria-hidden="true" tabindex="-1"></a>        <span class="dv">8</span> <span class="op">=&gt;</span> <span class="ch">'I'</span><span class="op">,</span></span>
+<span id="cb5-56"><a href="#cb5-56" aria-hidden="true" tabindex="-1"></a>        <span class="dv">9</span> <span class="op">=&gt;</span> <span class="ch">'J'</span><span class="op">,</span></span>
+<span id="cb5-57"><a href="#cb5-57" aria-hidden="true" tabindex="-1"></a>        <span class="dv">10</span> <span class="op">=&gt;</span> <span class="ch">'K'</span><span class="op">,</span></span>
+<span id="cb5-58"><a href="#cb5-58" aria-hidden="true" tabindex="-1"></a>        <span class="dv">11</span> <span class="op">=&gt;</span> <span class="ch">'L'</span><span class="op">,</span></span>
+<span id="cb5-59"><a href="#cb5-59" aria-hidden="true" tabindex="-1"></a>        <span class="dv">12</span> <span class="op">=&gt;</span> <span class="ch">'M'</span><span class="op">,</span></span>
+<span id="cb5-60"><a href="#cb5-60" aria-hidden="true" tabindex="-1"></a>        <span class="dv">13</span> <span class="op">=&gt;</span> <span class="ch">'N'</span><span class="op">,</span></span>
+<span id="cb5-61"><a href="#cb5-61" aria-hidden="true" tabindex="-1"></a>        <span class="dv">14</span> <span class="op">=&gt;</span> <span class="ch">'O'</span><span class="op">,</span></span>
+<span id="cb5-62"><a href="#cb5-62" aria-hidden="true" tabindex="-1"></a>        <span class="dv">15</span> <span class="op">=&gt;</span> <span class="ch">'P'</span><span class="op">,</span></span>
+<span id="cb5-63"><a href="#cb5-63" aria-hidden="true" tabindex="-1"></a>        <span class="dv">16</span> <span class="op">=&gt;</span> <span class="ch">'Q'</span><span class="op">,</span></span>
+<span id="cb5-64"><a href="#cb5-64" aria-hidden="true" tabindex="-1"></a>        <span class="dv">17</span> <span class="op">=&gt;</span> <span class="ch">'R'</span><span class="op">,</span></span>
+<span id="cb5-65"><a href="#cb5-65" aria-hidden="true" tabindex="-1"></a>        <span class="dv">18</span> <span class="op">=&gt;</span> <span class="ch">'S'</span><span class="op">,</span></span>
+<span id="cb5-66"><a href="#cb5-66" aria-hidden="true" tabindex="-1"></a>        <span class="dv">19</span> <span class="op">=&gt;</span> <span class="ch">'T'</span><span class="op">,</span></span>
+<span id="cb5-67"><a href="#cb5-67" aria-hidden="true" tabindex="-1"></a>        <span class="dv">20</span> <span class="op">=&gt;</span> <span class="ch">'U'</span><span class="op">,</span></span>
+<span id="cb5-68"><a href="#cb5-68" aria-hidden="true" tabindex="-1"></a>        <span class="dv">21</span> <span class="op">=&gt;</span> <span class="ch">'V'</span><span class="op">,</span></span>
+<span id="cb5-69"><a href="#cb5-69" aria-hidden="true" tabindex="-1"></a>        <span class="dv">22</span> <span class="op">=&gt;</span> <span class="ch">'W'</span><span class="op">,</span></span>
+<span id="cb5-70"><a href="#cb5-70" aria-hidden="true" tabindex="-1"></a>        <span class="dv">23</span> <span class="op">=&gt;</span> <span class="ch">'X'</span><span class="op">,</span></span>
+<span id="cb5-71"><a href="#cb5-71" aria-hidden="true" tabindex="-1"></a>        <span class="dv">24</span> <span class="op">=&gt;</span> <span class="ch">'Y'</span><span class="op">,</span></span>
+<span id="cb5-72"><a href="#cb5-72" aria-hidden="true" tabindex="-1"></a>        <span class="dv">25</span> <span class="op">=&gt;</span> <span class="ch">'Z'</span><span class="op">,</span></span>
+<span id="cb5-73"><a href="#cb5-73" aria-hidden="true" tabindex="-1"></a>        <span class="dv">26</span> <span class="op">=&gt;</span> <span class="ch">'0'</span><span class="op">,</span></span>
+<span id="cb5-74"><a href="#cb5-74" aria-hidden="true" tabindex="-1"></a>        <span class="dv">27</span> <span class="op">=&gt;</span> <span class="ch">'1'</span><span class="op">,</span></span>
+<span id="cb5-75"><a href="#cb5-75" aria-hidden="true" tabindex="-1"></a>        <span class="dv">28</span> <span class="op">=&gt;</span> <span class="ch">'2'</span><span class="op">,</span></span>
+<span id="cb5-76"><a href="#cb5-76" aria-hidden="true" tabindex="-1"></a>        <span class="dv">29</span> <span class="op">=&gt;</span> <span class="ch">'3'</span><span class="op">,</span></span>
+<span id="cb5-77"><a href="#cb5-77" aria-hidden="true" tabindex="-1"></a>        <span class="dv">30</span> <span class="op">=&gt;</span> <span class="ch">'4'</span><span class="op">,</span></span>
+<span id="cb5-78"><a href="#cb5-78" aria-hidden="true" tabindex="-1"></a>        <span class="dv">31</span> <span class="op">=&gt;</span> <span class="ch">'5'</span><span class="op">,</span></span>
+<span id="cb5-79"><a href="#cb5-79" aria-hidden="true" tabindex="-1"></a>        <span class="dv">32</span> <span class="op">=&gt;</span> <span class="ch">'6'</span><span class="op">,</span></span>
+<span id="cb5-80"><a href="#cb5-80" aria-hidden="true" tabindex="-1"></a>        <span class="dv">33</span> <span class="op">=&gt;</span> <span class="ch">'7'</span><span class="op">,</span></span>
+<span id="cb5-81"><a href="#cb5-81" aria-hidden="true" tabindex="-1"></a>        <span class="dv">34</span> <span class="op">=&gt;</span> <span class="ch">'8'</span><span class="op">,</span></span>
+<span id="cb5-82"><a href="#cb5-82" aria-hidden="true" tabindex="-1"></a>        <span class="dv">35</span> <span class="op">=&gt;</span> <span class="ch">'9'</span><span class="op">,</span></span>
+<span id="cb5-83"><a href="#cb5-83" aria-hidden="true" tabindex="-1"></a>        _ <span class="op">=&gt;</span> <span class="ch">'A'</span></span>
+<span id="cb5-84"><a href="#cb5-84" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb5-85"><a href="#cb5-85" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+</div>
+<p>While this implementation is rather unremarkable and fairly straightforward, the problem itself is not exactly trivial, since it must take user experience into account, as well as the requirements of the RNG library used. I myself am still unsure if this approach provides an optimal user experience, but it seems to work well enough for existing randomizers, so I believe it will be sufficient for Mini-rando’s needs.</p>
+</section>
+</article>
+</section>
+    <div class="spacer"></div>
+</body>
+</div>
+            <div class="rightsidebar"></div>
+	</div>
+    </body>
+    <script>
+        window.onscroll = function () {
+	    scrollRotate();
+	    scrollRotateOpposite();
+        };
+
+        function scrollRotate() {
+            let images = document.getElementsByClassName("gear-image");
+	    for (const image of images) {
+                image.style.transform = "rotate(" + window.pageYOffset/2 + "deg)";
+	    }
+        }
+
+        function scrollRotateOpposite() {
+            let images = document.getElementsByClassName("gear-image-opposite");
+	    for (const image of images) {
+                image.style.transform = "rotate(" + (-window.pageYOffset/2) + "deg)";
+	    }
+        }
+    </script>
+</html>

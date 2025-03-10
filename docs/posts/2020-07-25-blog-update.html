@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width">
+
+        <title>Types and Toucans - 2020-07-25-blog-update</title>
+
+        <!-- Stylesheets. -->
+        <link rel="stylesheet" type="text/css" href="../css/default.css?v=1">
+
+        <!-- Metadata. -->
+        <meta name="keywords" content="Jonathan Louie,blog,programming,coding,rust,idris,haskell,function,personal,homepage">
+        <meta name="description" content="Personal home page and blog of Jonathan Louie.">
+        <meta property="og:title" content="Types and Toucans - 2020-07-25-blog-update" />
+        
+    </head>
+    <body>
+        <div id="gear-1" class="gear-container">
+            <div class="gear">
+                <img class="gear-image" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-2" class="gear-container">
+            <div class="gear">
+                <img class="gear-image-opposite" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-3" class="gear-container">
+            <div class="gear">
+                <img class="gear-image" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-4" class="gear-container">
+            <div class="gear">
+                <img class="gear-image-opposite" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-5" class="gear-container">
+            <div class="gear">
+                <img class="gear-image-opposite" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-6" class="gear-container">
+            <div class="gear">
+                <img class="gear-image" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+	<div class="container">
+            <div class="leftsidebar"></div>
+	    <div class="content"><head>
+    <meta charset="utf-8">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="../css/default.css" />
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="../">Home</a>
+        </nav>
+    </header>
+    <section id="blog-update" role="main">
+<h1>Blog Update</h1>
+<article>
+<section class="header">
+Posted on July 25, 2020
+</section>
+<section>
+<p>This is kind of weird for me, because I tend not to do these sorts of meta posts about the blog itself. However, due to recent changes in my life, I have decided to write a post about what’s going on with the blog and where it’s headed.</p>
+<h1 id="future-of-the-blog">Future of the Blog</h1>
+<p>It’s the end of July and I still haven’t posted anything for this month. What gives? Well, this may come as a surprise, but I’m now officially the organizer of the <a href="https://www.meetup.com/Vancouver-Rust/">Rust Meetups in Vancouver</a>! As a result, I have to spend more time preparing material for the meetups, which means less time for this blog. I have mixed feelings on this, because I’m excited to be talking more about Rust and learning from other people, but I also really wanted to write about a lot more different topics for this blog. However, that doesn’t mean that I won’t be updating this blog at all. I’m leaning towards writing a new post bimonthly or if that is still too much, maybe only a few times a year.</p>
+<h1 id="future-topics-and-focus">Future Topics and Focus</h1>
+<p>This blog was started with randomizers in mind, but I’ve also been using this space to express my thoughts on other, more technical topics. While I still enjoy randomizers, I think that I’m probably going to move away from writing about them. This doesn’t mean I won’t ever write anything about them again, but I feel that most of my readers are more interested in the technical posts. I also tend to enjoy writing more technical posts, so I think this blog will primarily be a technical blog from now on.</p>
+<p>One thing I haven’t really talked about is how I decide which topics I blog about. It may be somewhat obvious, but I tend to just write about whatever comes to mind. Usually, I post about something new I’m learning or something related to some personal project I’m working on at the time. While I think that this format works pretty well for me, I actually have bigger plans for what I want to post in the near future. As you probably know by now, I’ve been doing a lot of reading about dependent types and theorem proving recently. So far, I’ve mentioned other materials one can read to learn more about these topics, but I’ve received feedback that telling people “go read this book” is not particularly helpful, since they don’t want to read a 500+ page book. I agree that this isn’t really the best way to help people understand what makes dependent types interesting, so I’ve decided to start up a new video series on programming with proofs, aimed at the average OOP developer. This will be uploaded to <a href="https://www.youtube.com/channel/UCjQgvE-k654RiRCLXa7JQNw">my YouTube channel</a>, so future blog posts will likely just be discussions about the videos, maybe about what goes into these videos behind the scenes. Again, this doesn’t preclude me from writing about other topics, so I may post occasionally about Rust and the meetup or some other things I’ve found that are interesting.</p>
+<h1 id="closing-thoughts">Closing thoughts</h1>
+<p>Given the current situation, I predict that there won’t be too much activity on this blog for the next year or so. However, I’m going to try to post more often on my <a href="https://www.youtube.com/channel/UCjQgvE-k654RiRCLXa7JQNw">YouTube channel</a>, so if you’re interested in what I’m doing, look for me there instead. And of course, you can always swing by the Vancouver Rust meetups as well. I welcome anyone interested in Rust, even if they are just beginners. I’m also looking for presenters, so if you happen to be interested in presenting something Rust related at the meetup, send me a message on <a href="https://www.meetup.com/Vancouver-Rust/">meetup.com</a> or fire off an e-mail to me at jonathanrlouie@gmail.com.</p>
+</section>
+</article>
+</section>
+    <div class="spacer"></div>
+</body>
+</div>
+            <div class="rightsidebar"></div>
+	</div>
+    </body>
+    <script>
+        window.onscroll = function () {
+	    scrollRotate();
+	    scrollRotateOpposite();
+        };
+
+        function scrollRotate() {
+            let images = document.getElementsByClassName("gear-image");
+	    for (const image of images) {
+                image.style.transform = "rotate(" + window.pageYOffset/2 + "deg)";
+	    }
+        }
+
+        function scrollRotateOpposite() {
+            let images = document.getElementsByClassName("gear-image-opposite");
+	    for (const image of images) {
+                image.style.transform = "rotate(" + (-window.pageYOffset/2) + "deg)";
+	    }
+        }
+    </script>
+</html>

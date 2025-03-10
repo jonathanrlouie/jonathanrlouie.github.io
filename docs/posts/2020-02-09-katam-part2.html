@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width">
+
+        <title>Types and Toucans - 2020-02-09-katam-part2</title>
+
+        <!-- Stylesheets. -->
+        <link rel="stylesheet" type="text/css" href="../css/default.css?v=1">
+
+        <!-- Metadata. -->
+        <meta name="keywords" content="Jonathan Louie,blog,programming,coding,rust,idris,haskell,function,personal,homepage">
+        <meta name="description" content="Personal home page and blog of Jonathan Louie.">
+        <meta property="og:title" content="Types and Toucans - 2020-02-09-katam-part2" />
+        
+    </head>
+    <body>
+        <div id="gear-1" class="gear-container">
+            <div class="gear">
+                <img class="gear-image" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-2" class="gear-container">
+            <div class="gear">
+                <img class="gear-image-opposite" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-3" class="gear-container">
+            <div class="gear">
+                <img class="gear-image" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-4" class="gear-container">
+            <div class="gear">
+                <img class="gear-image-opposite" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-5" class="gear-container">
+            <div class="gear">
+                <img class="gear-image-opposite" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-6" class="gear-container">
+            <div class="gear">
+                <img class="gear-image" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+	<div class="container">
+            <div class="leftsidebar"></div>
+	    <div class="content"><head>
+    <meta charset="utf-8">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="../css/default.css" />
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="../">Home</a>
+        </nav>
+    </header>
+    <section id="lets-build-a-randomizer-part-2" role="main">
+<h1>Let’s build a randomizer! Part 2</h1>
+<article>
+<section class="header">
+Posted on February 9, 2020
+</section>
+<section>
+<p>I’ve finally found some more time to work on this project, so I decided that it’s time for another progress update post. This time, I’m going to be focusing on the primary randomization algorithm used to shuffle entrances around. However, I’d like to also briefly go over the structure of the entire project so that it’s easier to visualize what’s going on.</p>
+<h1 id="project-structure">Project Structure</h1>
+<figure>
+<img src="../Assets/KatAMRandomizer/Part2/ProjectStructure.png" />
+<figcaption>Project structure</figcaption>
+</figure>
+<p>I’m mostly covering this in case it wasn’t entirely clear what the project would look like from the first post. The plan is to have a JSON file containing all of the door information. The randomizer engine that I’m writing will consume this file, transform its contents into a structure that the randomizer algorithm can process, perform all of the necessary entrance swaps, and then output a mapping of the original entrances to their new destinations. From here, a randomizer application can use the randomizer engine as a library to generate entrance mappings for whatever they want.</p>
+<h1 id="language">Language</h1>
+<p>So I’ve finally decided on what tools I’m using. Initially, I was planning on taking Idris for a spin, but it doesn’t have much of an ecosystem right now, so I’m using Rust. I’m most familiar with Rust anyway, so it’d be faster for me to write the project in Rust. I won’t be able to have the compiler verify that the randomizer is correct in the same way as I would with Idris, but perhaps later I’ll play around with this a bit more using the experimental (and super unstable) <code>const</code> generics to get similar benefits.</p>
+<h1 id="dependencies">Dependencies</h1>
+<p>Since I’m picking Rust, I decided to use <code>serde_json</code> for handling JSON deserialization (wow, what a surprise) and I’m also using <code>petgraph</code>, since the main algorithm represents the game as a directed graph. For randomization, I just decided to use the popular <code>rand</code> crate.</p>
+<h1 id="the-algorithm">The Algorithm</h1>
+<p>The biggest challenge with developing this entrance randomization was making sure that the entire game is completable. I also had the goal of making sure that every room in the game is visitable. Of course, by making every room visitable, the game must also be completable, so this seemed like a pretty good goal to start with. I wanted to also make sure that there was a sufficient amount of randomness to the generated entrance mappings, because otherwise, the game would get stale quickly. I first started with the idea of representing the game as a directed graph, mapping nodes to logical rooms and edges to transitions from one room to another. I would then try to randomly swap the destinations of edges, as long as the game was still completable. This very quickly fell apart because some rooms, such as the 4-door room mentioned in the previous post in this series, needed to have some kind of transition from one logical room on that screen to another. This made me realize that I needed to create subgraphs for each room. Thus, I decided to represent doors as nodes with the paths between each door being represented as edges. I then decided that the JSON transformation would need to tell the algorithm which entrances can be swapped.</p>
+<h1 id="visitability">Visitability</h1>
+<p>At this point, I started sketching out some scenarios of how the algorithm would perform randomizations while still allowing all nodes to be visitable. As a result of this, I learned that it’s very difficult to build up a fully visitable graph from an empty graph, since the order in which you add entrances matter. For instance, you might add a node to the graph that cuts off all possibilities of connecting a new two-way entrance. This is certainly possible through a brute-force permutation search, but that could take a long time and I didn’t want to take that risk, even if it’s relatively small in practice. However, even in that case, I would still need to somehow determine whether or not the game is completable before adding new nodes. Thus, I started researching this problem online and found a bunch of material on dynamic graphs. It turns out that as long as I ignore abilities, I can condense the strongly-connected components (SCCs) of the graph into single nodes and then just check if there is only 1 node in the graph that has no incoming edges. If so, then the entire graph is visitable from the start node. Luckily, the <code>petgraph</code> crate already supports condensing graphs using Kosaraju’s algorithm. I ultimately ended up writing an algorithm that simply loops some specified number of times, randomly swapping edges if the swap allows the game to be completed according to the aforementioned logic. This involves copying the graph and recondensing it after each swap, which is a bit slow, but I think there is probably a way to avoid recondensing the entire graph after each swap. At the very least, <code>petgraph</code>’s <code>map</code> function only seems to perform a shallow copy of the graph.</p>
+<h1 id="further-optimizations">Further optimizations</h1>
+<p>One idea I had is to mark certain subgraphs as being connectors. What I mean by this is that a graph like the following…</p>
+<figure>
+<img src="../Assets/KatAMRandomizer/Part2/Graph.png" />
+<figcaption>Graph</figcaption>
+</figure>
+<p>… can be expanded into the following graph by inserting an arbitrary subgraph of the right shape:</p>
+<figure>
+<img src="../Assets/KatAMRandomizer/Part2/GraphInserted.png" />
+<figcaption>Graph inserted</figcaption>
+</figure>
+<p>As you can see, all subgraphs that contain a single entrance and exit of the same type (either one-way or two-way) can be arbitrarily inserted anywhere there is an edge of the corresponding type. This allows us to run the algorithm on only the portion of the graph that does not contain these “filler” subgraphs and also allows us to randomly insert these subgraphs later. Of course, doing this means that the JSON transformation needs to also build the graph without these subgraphs in the initial algorithm input. I haven’t implemented this yet, but I definitely plan to do this soon, since it would help with making the game more random and would also speed up the randomization process significantly.</p>
+<h1 id="the-code">The code</h1>
+<p>I’ve decided not to provide the code, since I found a number of issues with the original implementation I had posted here. This will be fixed in the future.</p>
+<h1 id="whats-next">What’s next?</h1>
+<p>With the main algorithm basically complete, I’m currently working on transforming the JSON list of doors into the appropriate input for the algorithm. I aim to finish the entire engine before I make my next post about this project, since I don’t think there’s too much more work to do. Then, I’m probably going to play around with integrating <code>const</code> generics into the project.</p>
+</section>
+</article>
+</section>
+    <div class="spacer"></div>
+</body>
+</div>
+            <div class="rightsidebar"></div>
+	</div>
+    </body>
+    <script>
+        window.onscroll = function () {
+	    scrollRotate();
+	    scrollRotateOpposite();
+        };
+
+        function scrollRotate() {
+            let images = document.getElementsByClassName("gear-image");
+	    for (const image of images) {
+                image.style.transform = "rotate(" + window.pageYOffset/2 + "deg)";
+	    }
+        }
+
+        function scrollRotateOpposite() {
+            let images = document.getElementsByClassName("gear-image-opposite");
+	    for (const image of images) {
+                image.style.transform = "rotate(" + (-window.pageYOffset/2) + "deg)";
+	    }
+        }
+    </script>
+</html>

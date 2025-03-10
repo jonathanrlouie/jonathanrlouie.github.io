@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width">
+
+        <title>Types and Toucans - 2020-08-16-hakyll</title>
+
+        <!-- Stylesheets. -->
+        <link rel="stylesheet" type="text/css" href="../css/default.css?v=1">
+
+        <!-- Metadata. -->
+        <meta name="keywords" content="Jonathan Louie,blog,programming,coding,rust,idris,haskell,function,personal,homepage">
+        <meta name="description" content="Personal home page and blog of Jonathan Louie.">
+        <meta property="og:title" content="Types and Toucans - 2020-08-16-hakyll" />
+        
+    </head>
+    <body>
+        <div id="gear-1" class="gear-container">
+            <div class="gear">
+                <img class="gear-image" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-2" class="gear-container">
+            <div class="gear">
+                <img class="gear-image-opposite" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-3" class="gear-container">
+            <div class="gear">
+                <img class="gear-image" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-4" class="gear-container">
+            <div class="gear">
+                <img class="gear-image-opposite" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-5" class="gear-container">
+            <div class="gear">
+                <img class="gear-image-opposite" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-6" class="gear-container">
+            <div class="gear">
+                <img class="gear-image" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+	<div class="container">
+            <div class="leftsidebar"></div>
+	    <div class="content"><head>
+    <meta charset="utf-8">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="../css/default.css" />
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="../">Home</a>
+        </nav>
+    </header>
+    <section id="hakyll-migration" role="main">
+<h1>Hakyll Migration</h1>
+<article>
+<section class="header">
+Posted on August 16, 2020
+</section>
+<section>
+<p>Hello! You may have noticed that my blog got a whole lot uglier recently! That’s because I have migrated my blog from Jekyll to <a href="https://jaspervdj.be/hakyll/index.html">Hakyll</a>. I’m not entirely done with the migration (I have to fix images still), but I just wanted to give my thoughts on the change and what I want to do with the blog now.</p>
+<h1 id="why-migrate">Why migrate?</h1>
+<p>Recently, I received an e-mail from GitHub saying that my blog had a security vulnerability in one of its dependencies. It turns out that the Ruby gem, Kramdown, had <a href="https://github.com/advisories/GHSA-mqm2-cgpr-p4m6">a vulnerability</a> allowing unintended read access or unintended Ruby code execution. Naturally, this was somewhat concerning. I checked out the Jekyll site and found that if I updated to the newest version of Jekyll, I would avoid using the affected version of Kramdown. I thought this would be the easy way out, since all I had to do was update Ruby and then update Jekyll. Unfortunately, that didn’t work. I ran into some errors and my Jekyll version wouldn’t update. After a bit more thought, I looked into the history of Jekyll and found that similar security vulnerabilities have been found before in various Ruby gems that Jekyll depends on. At this point, I decided that I wanted to use something I could trust to be more stable and looked into alternatives. Hakyll was the first one that came up and it had no history of vulnerabilities, so I decided to give it a try. Hakyll is also written in Haskell, which is a fairly mature language at this point, so I feel comfortable making this change.</p>
+<h1 id="migration">Migration</h1>
+<p>Migrating was kind of interesting. Installing Stack and setting up the site to begin with took a fair amount of time (&gt;30 minutes). I can’t say that this left a great first impression on me, but after I got it all installed and setup, building the site was very quick. I had to go through all of my old blog posts and update them, since the markdown parser Hakyll uses by default behaves a bit differently. Going through my old posts was a fun trip down memory lane, although I have to say, I’m not fond of some of the older posts I’ve written. Some of the posts were being read in binary format, apparently, and I had to copy them in order to get Hakyll to stop complaining about them. Kind of strange. Otherwise, this was a very smooth process.</p>
+<p>Deploying the site to GitHub Pages was more tricky. There is a tutorial for this on the Hakyll site, but when I was reading it, it wasn’t clear which files went where. So if you look at my blog’s commit history, you’ll notice that I fought with the file locations a bit before I eventually figured out where they all belong. Now that I understand the structure a bit better, the tutorial makes a lot more sense, but it’s definitely one of those pieces of documentation that is easier to read when you already understand its contents. I find that this happens with a lot of documentation, usually because it’s written by someone who is already familiar with how something works and has forgotten how someone new to the problem would approach things.</p>
+<h1 id="future-plans">Future plans</h1>
+<p>Currently, I’m using Hakyll’s default theme, which is kind of ugly. I want to change this and pretty up the site a bit. I also want to fix the images in previous blog posts. However, since I am still very busy, I don’t really know when I will next be able to do this. To be completely honest, I did not want to mess with my blog this month, but because of the vulnerability, I felt obligated to fix the issue. Now that I have switched to Hakyll, I hope that I won’t have to deal with these kinds of issues again in the future.</p>
+</section>
+</article>
+</section>
+    <div class="spacer"></div>
+</body>
+</div>
+            <div class="rightsidebar"></div>
+	</div>
+    </body>
+    <script>
+        window.onscroll = function () {
+	    scrollRotate();
+	    scrollRotateOpposite();
+        };
+
+        function scrollRotate() {
+            let images = document.getElementsByClassName("gear-image");
+	    for (const image of images) {
+                image.style.transform = "rotate(" + window.pageYOffset/2 + "deg)";
+	    }
+        }
+
+        function scrollRotateOpposite() {
+            let images = document.getElementsByClassName("gear-image-opposite");
+	    for (const image of images) {
+                image.style.transform = "rotate(" + (-window.pageYOffset/2) + "deg)";
+	    }
+        }
+    </script>
+</html>

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width">
+
+        <title>Types and Toucans - 2019-04-22-practice-game-jam</title>
+
+        <!-- Stylesheets. -->
+        <link rel="stylesheet" type="text/css" href="../css/default.css?v=1">
+
+        <!-- Metadata. -->
+        <meta name="keywords" content="Jonathan Louie,blog,programming,coding,rust,idris,haskell,function,personal,homepage">
+        <meta name="description" content="Personal home page and blog of Jonathan Louie.">
+        <meta property="og:title" content="Types and Toucans - 2019-04-22-practice-game-jam" />
+        
+    </head>
+    <body>
+        <div id="gear-1" class="gear-container">
+            <div class="gear">
+                <img class="gear-image" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-2" class="gear-container">
+            <div class="gear">
+                <img class="gear-image-opposite" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-3" class="gear-container">
+            <div class="gear">
+                <img class="gear-image" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-4" class="gear-container">
+            <div class="gear">
+                <img class="gear-image-opposite" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-5" class="gear-container">
+            <div class="gear">
+                <img class="gear-image-opposite" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+        <div id="gear-6" class="gear-container">
+            <div class="gear">
+                <img class="gear-image" src="../Assets/Gear.svg" alt="scroll">
+            </div>
+        </div>
+	<div class="container">
+            <div class="leftsidebar"></div>
+	    <div class="content"><head>
+    <meta charset="utf-8">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="../css/default.css" />
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="../">Home</a>
+        </nav>
+    </header>
+    <section id="summary-of-my-practice-game-jam" role="main">
+<h1>Summary of my practice game jam</h1>
+<article>
+<section class="header">
+Posted on April 22, 2019
+</section>
+<section>
+<p>On April 19, I started a 48-hour practice game jam using Amethyst. The game I made can be found <a href="https://github.com/jonathanrlouie/game-jam-dimension">here</a>. As mentioned in the README, my sister came up with a big list of (wacky) game jam themes and I wrote a small script to randomly pick one of the themes. The theme that the script picked was “OH NO I FELL INTO ANOTHER DIMENSION”, which I felt was a relatively tame topic (for reference, some of the other topics in that list included “MOTHS TERRORIZING INNOCENT PEOPLE” and “CATS IN SPACE WITH PIZZA” :P). The end product is quite buggy and isn’t a very fun game to play, but I am quite happy with the result, seeing as this is the first playable game I’ve ever created outside of Game Maker.</p>
+<h2 id="the-plan">The plan</h2>
+<p>As soon as I saw the theme, I came up with the idea to make a game where you “fall” into another dimension by pressing a button. Initially, I wanted to make it a platformer, so the player would literally be “falling into another dimension”, but I didn’t want to take the chance playing with a physics engine when I have no experience working with one. Instead, I opted to make a top-down maze game. In this other dimension, the types of enemies and the layout of the walls would be different, so swapping back and forth between dimensions would be key to winning. To make things more interesting, I wanted to make it so that the player could shift the other dimension around somehow, but that ended up being too complex to implement given the time constraints. The idea for having the main character be a bull was kind of arbitrary. I started drawing a blob and it morphed into a bull while I was drawing it, so I decided to go with it. I also wanted to add a snake enemy to the game that just moved back and forth, but ran out of time. The movement system in the game is based on other similar puzzle games, such as Deadly Rooms of Death and Baba Is You.</p>
+<h2 id="assets">Assets</h2>
+<p>When I started this game jam, I wanted to try creating all of my own assets. This included music, sprites, animations, and fonts. Unfortunately, I never got around to creating any music or animating any of the sprites I had, but I did, however, manage to create my own font and draw a few sprites. To create the font, I used <a href="http://www.pentacom.jp/pentacom/bitfontmaker2/">this tool</a>. It turns out that making pixel fonts is relatively quick and easy, which I would guess is part of the reason why a lot of indie game developers tend to use pixel art styles for their games. Regarding music composition, I still have no idea what the best tool for that might be. At the very least, I think I have a pretty good idea of how to add music in Amethyst. Sprites were drawn using Paint.NET, not because I hate GIMP (I’ve used GIMP for various small projects in the past), but because it was more intuitive to use and fast to pick up. I’m still not sure how to animate sprites on the Amethyst side, so it’s something I intend to figure out before the next game I create.</p>
+<h2 id="what-went-well">What went well</h2>
+<p>After implementing the first couple of systems, it became a lot easier to add features to the game. The examples on the Amethyst repo were incredibly helpful and I felt like it was pretty easy to understand how to build a game based on those examples.</p>
+<h2 id="what-did-not-work-so-well">What did not work so well</h2>
+<p>The biggest papercut I encountered while working on this project was sprite rendering. When I first tried loading the textures for the sprite sheet, I kept running into an “UnusedHandle” error, which took me hours to resolve. I ended up cloning the Amethyst repo, running the pong example, and then discovering that it had the exact same error. The only solution I could find was to switch from using Amethyst 0.10.0 to using the latest master build of Amethyst. As a result, I ended up spending pretty much the entire first day just trying to resolve this issue. I also ran into some errors about storages being missing when trying to add my own components to entities. These errors were, thankfully, much simpler to resolve, as all I needed to do was ensure that my systems were using the components I had created. Aside from these issues, the only other problems I can think of were mostly related to designing ECS-friendly code. My only experience with game development so far has been in Game Maker, so adjusting to the ECS infrastructure took a bit of getting used to. I ended up making some bad design decisions as a result, before seeing that specs has tools for addressing those problems. For example, I don’t really like how much logic ended up in the InputSystem I created. I feel like the input handling system should only really be updating some state variables that will be exposed to other systems that depend on those variables. I definitely could have split that system up into multiple systems. I also ended up duplicating some logic when I realized that I needed to reuse some of the initialisation logic within the systems I had defined. Instead of defining the logic in OO class-like structs, I should have put the logic somewhere reachable to both the systems and the initialisation logic. That way, I could have also easily added a “reset level” button too, in case the player got stuck in an unwinnable state. One of the major bugs of this game is that switching dimensions causes transparency to be lost on the background of the bull sprite. I hacked around having the second dimension’s tiles render on top of the bull by putting the map tiles at a z-coordinate behind the bull, but then ended up with this bug instead. Unfortunately, I still do not know why this happens, but I would guess that it has to do with sprite rendering order. It is on my to-do list of issues to iron out before I try making another game.</p>
+<h2 id="conclusion">Conclusion</h2>
+<p>Ultimately, I feel that this was a good exercise and I learned a lot about ECS, how Amethyst works, and how I can better design a game in this engine in the future. What I learned here will definitely be useful as I continue working on Mini-Rando. If I ever do another one of these (or go to a real game jam), I think I will at least be able to make a more polished game and get a bit more creative with gameplay. I’m also surprised at how little rustc got in my way. I genuinely think I might be getting faster at recognizing when Rust code won’t compile, so it’s nice to see my practice starting to pay off.</p>
+</section>
+</article>
+</section>
+    <div class="spacer"></div>
+</body>
+</div>
+            <div class="rightsidebar"></div>
+	</div>
+    </body>
+    <script>
+        window.onscroll = function () {
+	    scrollRotate();
+	    scrollRotateOpposite();
+        };
+
+        function scrollRotate() {
+            let images = document.getElementsByClassName("gear-image");
+	    for (const image of images) {
+                image.style.transform = "rotate(" + window.pageYOffset/2 + "deg)";
+	    }
+        }
+
+        function scrollRotateOpposite() {
+            let images = document.getElementsByClassName("gear-image-opposite");
+	    for (const image of images) {
+                image.style.transform = "rotate(" + (-window.pageYOffset/2) + "deg)";
+	    }
+        }
+    </script>
+</html>
