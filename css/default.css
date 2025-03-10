@@ -24,6 +24,7 @@ body {
 }
 
 .container > div.content {
+	margin-top: 10px;
 	grid-area: content;
 	background-color: "yellow";
 	background-repeat: repeat-y; 
