@@ -28,6 +28,7 @@ main = hakyll $ do
             >>= loadAndApplyTemplate "templates/default.html" postCtx
             >>= relativizeUrls
 
+    {-
     create ["archive.html"] $ do
         route idRoute
         compile $ do
@@ -41,6 +42,7 @@ main = hakyll $ do
                 >>= loadAndApplyTemplate "templates/archive.html" archiveCtx
                 >>= loadAndApplyTemplate "templates/default.html" archiveCtx
                 >>= relativizeUrls
+    -}
 
 
     match "index.html" $ do
