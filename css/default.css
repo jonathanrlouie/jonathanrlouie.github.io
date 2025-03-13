@@ -18,6 +18,7 @@ img:not(.gear-image, .gear-image-opposite) {
 	grid-area: leftsidebar;
 	background-image: url("../Assets/BlogBackgroundLeft.svg");
 	background-repeat: repeat-y; 
+	z-index: -2;
 }
 
 .container > div.rightsidebar {
@@ -26,6 +27,7 @@ img:not(.gear-image, .gear-image-opposite) {
         background-position: right center;
 	background-image: url("../Assets/BlogBackgroundRight.svg");
 	background-repeat: repeat-y; 
+	z-index: -2;
 }
 
 .container > div.content {
@@ -68,6 +70,7 @@ img:not(.gear-image, .gear-image-opposite) {
 .gear-container {
     transform: translate(-50%, -50%);
     position: fixed;
+    z-index: -1;
 }
 
 .gear {
