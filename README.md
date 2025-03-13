@@ -3,6 +3,9 @@
 This is my personal blog. I write about my technical projects and other stuff usually somewhat related to functional programming. If you're interested, here's the link: https://jonathanrlouie.github.io/
 
 # Building and Deploying
+
+Run `deploy.sh`, which runs the following commands:
+
 ```bash
 # build site.hs
 stack build
